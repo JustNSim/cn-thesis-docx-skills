@@ -29,6 +29,12 @@ Ask only when the user has not already specified a high-impact choice:
 
 Proceed with reasonable defaults for minor typography and file naming.
 
+## DOCX Preflight Gate
+
+Before drafting Markdown or creating DOCX, read `references/preflight.md` and resolve its required fields. Do not create a DOCX until template mode and word-count target are recorded.
+
+If the user explicitly requests the bundled base template or supplies a template path, acknowledge that choice and do not ask it again. If either template mode or word-count target is missing, ask one concise preflight question before continuing.
+
 ## Workflow
 
 1. **Read inputs**
@@ -43,6 +49,7 @@ Proceed with reasonable defaults for minor typography and file naming.
    - Use the user's template if supplied.
    - Otherwise use a structure like: research direction overview; domestic/foreign research status; research status summary and analysis; references.
    - Use third-level headings when method categories need internal comparison.
+   - When the template provides heading numbering, write semantic heading text only. Do not prepend manual Chinese or Arabic numbers such as `一、`, `1.`, or `2.1`; let the template's numbering definitions render them.
 
 4. **Draft Markdown first**
    - Produce `outputs/literature-review.md` unless the user requests another path.
@@ -57,6 +64,9 @@ Proceed with reasonable defaults for minor typography and file naming.
 
 6. **Build and validate DOCX**
    - Work on a copy of the template.
+   - Edit mapped template slots in place. Never delete the template body and rebuild it with generic `Heading 1`, `Heading 2`, `Title`, `Normal`, or list styles.
+   - Preserve the cover, TOC, section breaks, headers, footers, page-number fields, and template styles unless the user explicitly requests their removal.
+   - Do not apply blanket run-level font or size overrides. Use the template's existing paragraph and character styles.
    - Preserve template styles, section settings, headers/footers, TOC fields, and heading levels.
    - Convert citations to Word REF fields when renumbering may be needed.
    - Run `inspect_docx_template.py <output> --strict` and `audit_docx_report.py <output> --strict` before delivery.
@@ -70,6 +80,7 @@ Proceed with reasonable defaults for minor typography and file naming.
 
 ## References To Load
 
+- Read `references/preflight.md` before drafting or creating DOCX.
 - Read `references/docx-crossrefs.md` before modifying numbered references, Word fields, superscript citations, or bibliography order.
 - Read `references/template-policy.md` before using, anonymizing, or publishing bundled templates.
 

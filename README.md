@@ -99,6 +99,8 @@ python scripts/convert_refs_to_crossrefs.py input.docx output.docx
 - DOCX 模板（可选）
 - 已有论文、参考文献或相关资料（可选；也可以由 Agent 协助检索）
 
+首次生成 DOCX 前，skill 会确认模板模式与正文目标字数/区间（并确认封面、目录、参考文献等是否计入）。已明确指定用户模板或内置 base template 时不会重复询问，但仍必须补齐缺失的字数要求。DOCX 必须在模板副本中原位编辑；不得删除模板正文后用通用 Word 标题样式重建，也不得在模板自动编号的标题前手工添加中文或阿拉伯编号。
+
 ## 模板与引用处理
 
 - 可以使用用户自己的 DOCX 模板
