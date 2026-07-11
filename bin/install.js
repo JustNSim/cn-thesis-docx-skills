@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 "use strict";
 
+const crypto = require("crypto");
 const fs = require("fs");
-const path = require("path");
 const os = require("os");
+const path = require("path");
 const readline = require("readline");
 
 const ROOT = path.resolve(__dirname, "..");
+const PACKAGE_VERSION = require(path.join(ROOT, "package.json")).version;
 const SKILL_ROOT = path.join(ROOT, "skills");
+const INSTALL_MANIFEST = ".cn-thesis-docx-skills-install.json";
 const SKILLS = {
   review: "thesis-literature-review-builder",
   proposal: "thesis-proposal-report-builder"
@@ -20,19 +23,25 @@ function usage() {
   npx cn-thesis-docx-skills install
   npx cn-thesis-docx-skills@latest update
   cn-thesis-docx-skills install --skill review --tool codex --scope global
-  cn-thesis-docx-skills install --skill proposal --tool claude --scope project
-  cn-thesis-docx-skills install --skill all --tool opencode --scope global
-  cn-thesis-docx-skills update --skill review --scope project
+  cn-thesis-docx-skills update --skill proposal --scope project
 
 Options:
   --skill <review|proposal|all>
   --tool <codex|claude|opencode|agents|all>
   --scope <global|project>
-  --project-dir <path>      Defaults to current working directory
-  --force                   Overwrite an existing installed skill
-  --dry-run                 Show installed skills that would be updated (update only)
-  --check                   Print compatibility information only
+  --project-dir <path>      Defaults to the current working directory
+  --force                   Replace a modified or legacy installation (a backup is kept)
+  --dry-run                 Show changes without updating (update only)
+  --check                   Validate package source and print compatibility information
 `);
+}
+
+function optionValue(rest, index, option) {
+  const value = rest[index + 1];
+  if (!value || value.startsWith("-")) {
+    throw new Error(`${option} requires a value.`);
+  }
+  return value;
 }
 
 function parseArgs(argv) {
@@ -46,16 +55,16 @@ function parseArgs(argv) {
   const rest = argv.slice(2);
   if (rest[0] && !rest[0].startsWith("-")) args.command = rest.shift();
   for (let i = 0; i < rest.length; i++) {
-    const a = rest[i];
-    if (a === "--skill") args.skill = rest[++i];
-    else if (a === "--tool") args.tool = rest[++i];
-    else if (a === "--scope") args.scope = rest[++i];
-    else if (a === "--project-dir") args.projectDir = path.resolve(rest[++i]);
-    else if (a === "--force") args.force = true;
-    else if (a === "--dry-run") args.dryRun = true;
-    else if (a === "--check") args.check = true;
-    else if (a === "-h" || a === "--help") args.help = true;
-    else throw new Error(`Unknown argument: ${a}`);
+    const option = rest[i];
+    if (option === "--skill") args.skill = optionValue(rest, i++, option);
+    else if (option === "--tool") args.tool = optionValue(rest, i++, option);
+    else if (option === "--scope") args.scope = optionValue(rest, i++, option);
+    else if (option === "--project-dir") args.projectDir = path.resolve(optionValue(rest, i++, option));
+    else if (option === "--force") args.force = true;
+    else if (option === "--dry-run") args.dryRun = true;
+    else if (option === "--check") args.check = true;
+    else if (option === "-h" || option === "--help") args.help = true;
+    else throw new Error(`Unknown argument: ${option}`);
   }
   return args;
 }
@@ -86,6 +95,35 @@ function targetFor(tool, scope, projectDir, skillName) {
   throw new Error(`Unsupported target: tool=${tool}, scope=${scope}`);
 }
 
+function sourceEntries(dir, relative = "") {
+  const entries = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "__pycache__" || entry.name === ".DS_Store") continue;
+    const childRelative = relative ? path.join(relative, entry.name) : entry.name;
+    const child = path.join(dir, entry.name);
+    if (entry.isDirectory()) entries.push(...sourceEntries(child, childRelative));
+    else if (entry.isFile()) entries.push(childRelative);
+  }
+  return entries.sort();
+}
+
+function sha256(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
+function buildManifest(src, skillName) {
+  const files = {};
+  for (const relative of sourceEntries(src)) {
+    files[relative.replaceAll(path.sep, "/")] = sha256(path.join(src, relative));
+  }
+  return {
+    package: "cn-thesis-docx-skills",
+    packageVersion: PACKAGE_VERSION,
+    skillName,
+    files
+  };
+}
+
 function copyRecursive(src, dest) {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
@@ -104,32 +142,65 @@ function removeRecursive(target) {
   if (fs.existsSync(target)) fs.rmSync(target, { recursive: true, force: true });
 }
 
-function installOne(tool, scope, projectDir, skillName, force) {
-  const src = path.join(SKILL_ROOT, skillName);
-  if (!fs.existsSync(path.join(src, "SKILL.md"))) {
-    throw new Error(`Missing skill source: ${src}`);
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
   }
-  const dest = targetFor(tool, scope, projectDir, skillName);
-  if (fs.existsSync(dest) && !force) {
-    throw new Error(`${dest} already exists. Re-run with --force to overwrite.`);
-  }
-  removeRecursive(dest);
-  copyRecursive(src, dest);
-  return dest;
 }
 
-function updateOne(tool, scope, projectDir, skillName, dryRun) {
-  const src = path.join(SKILL_ROOT, skillName);
-  const dest = targetFor(tool, scope, projectDir, skillName);
-  if (!fs.existsSync(dest)) return null;
-  if (!fs.existsSync(path.join(dest, "SKILL.md"))) {
-    throw new Error(`Refusing to overwrite a non-skill directory: ${dest}`);
+function installationState(dest, skillName) {
+  if (!fs.existsSync(dest)) return { state: "missing" };
+  if (!fs.existsSync(path.join(dest, "SKILL.md"))) return { state: "not-skill" };
+  const manifest = readJson(path.join(dest, INSTALL_MANIFEST));
+  if (!manifest || manifest.skillName !== skillName || !manifest.files) {
+    return { state: "legacy" };
   }
-  if (!dryRun) {
-    removeRecursive(dest);
-    copyRecursive(src, dest);
+  const actualFiles = sourceEntries(dest)
+    .filter((relative) => relative !== INSTALL_MANIFEST)
+    .map((relative) => relative.replaceAll(path.sep, "/"));
+  const expectedFiles = Object.keys(manifest.files).sort();
+  if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) return { state: "modified" };
+  for (const relative of expectedFiles) {
+    if (sha256(path.join(dest, relative)) !== manifest.files[relative]) return { state: "modified" };
   }
-  return dest;
+  return { state: "managed", manifest };
+}
+
+function createStage(src, dest, skillName) {
+  const parent = path.dirname(dest);
+  fs.mkdirSync(parent, { recursive: true });
+  const stage = path.join(parent, `.${path.basename(dest)}.staging-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  copyRecursive(src, stage);
+  fs.writeFileSync(path.join(stage, INSTALL_MANIFEST), `${JSON.stringify(buildManifest(src, skillName), null, 2)}\n`, "utf8");
+  return stage;
+}
+
+function backupPath(dest) {
+  return `${dest}.backup-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+}
+
+function activateStage(stage, dest) {
+  let backup = null;
+  if (fs.existsSync(dest)) {
+    backup = backupPath(dest);
+    fs.renameSync(dest, backup);
+  }
+  try {
+    fs.renameSync(stage, dest);
+  } catch (error) {
+    if (backup && fs.existsSync(backup) && !fs.existsSync(dest)) fs.renameSync(backup, dest);
+    throw error;
+  }
+  return backup;
+}
+
+function rollback(committed) {
+  for (const item of committed.reverse()) {
+    removeRecursive(item.dest);
+    if (item.backup && fs.existsSync(item.backup)) fs.renameSync(item.backup, item.dest);
+  }
 }
 
 function ask(question, choices) {
@@ -160,12 +231,11 @@ async function resolveChoice(args) {
 }
 
 function selectedSkills(skill) {
-  if (skill === "all") return Object.values(SKILLS);
-  return [SKILLS[skill]];
+  return skill === "all" ? Object.values(SKILLS) : [SKILLS[skill]];
 }
 
 function selectedTools(tool) {
-  return tool === "all" ? TOOLS.filter((t) => t !== "all") : [tool];
+  return tool === "all" ? TOOLS.filter((item) => item !== "all") : [tool];
 }
 
 function validateOptionalFilters(args) {
@@ -184,83 +254,121 @@ function validateOptionalFilters(args) {
   }
 }
 
-function updateInstalled(args) {
+function sourceFor(skillName) {
+  const src = path.join(SKILL_ROOT, skillName);
+  if (!fs.existsSync(path.join(src, "SKILL.md"))) throw new Error(`Missing skill source: ${src}`);
+  return src;
+}
+
+function installPlans(skill, tool, scope, projectDir, force) {
+  const plans = [];
+  for (const skillName of selectedSkills(skill)) {
+    const src = sourceFor(skillName);
+    for (const targetTool of selectedTools(tool)) {
+      const dest = targetFor(targetTool, scope, projectDir, skillName);
+      const existing = installationState(dest, skillName);
+      if (existing.state !== "missing" && !force) {
+        throw new Error(`${dest} already exists. Re-run with --force to replace it; a backup will be kept.`);
+      }
+      if (existing.state === "not-skill") {
+        throw new Error(`Refusing to replace a non-skill directory: ${dest}`);
+      }
+      plans.push({ src, dest, skillName, action: existing.state === "missing" ? "install" : "replace" });
+    }
+  }
+  return plans;
+}
+
+function updatePlans(args) {
   validateOptionalFilters(args);
-  const skills = selectedSkills(args.skill || "all");
-  const tools = selectedTools(args.tool || "all");
-  const scopes = args.scope ? [args.scope] : SCOPES;
-  const updated = [];
-  for (const skillName of skills) {
-    for (const tool of tools) {
-      for (const scope of scopes) {
-        const dest = updateOne(tool, scope, args.projectDir, skillName, args.dryRun);
-        if (dest) updated.push(dest);
+  const plans = [];
+  for (const skillName of selectedSkills(args.skill || "all")) {
+    const src = sourceFor(skillName);
+    for (const tool of selectedTools(args.tool || "all")) {
+      for (const scope of args.scope ? [args.scope] : SCOPES) {
+        const dest = targetFor(tool, scope, args.projectDir, skillName);
+        const existing = installationState(dest, skillName);
+        if (existing.state === "missing") continue;
+        if (existing.state === "not-skill") throw new Error(`Refusing to overwrite a non-skill directory: ${dest}`);
+        if ((existing.state === "modified" || existing.state === "legacy") && !args.force) {
+          throw new Error(`${dest} is ${existing.state === "legacy" ? "not managed by this installer" : "locally modified"}. Re-run with --force to replace it; a backup will be kept.`);
+        }
+        plans.push({ src, dest, skillName, action: "update", state: existing.state });
       }
     }
   }
-  if (updated.length === 0) {
-    console.log("No installed skills matched the selected filters.");
-    console.log("Use the install command first, or set --project-dir to the project containing the skills.");
-    return;
+  return plans;
+}
+
+function applyPlans(plans) {
+  const staged = [];
+  try {
+    for (const plan of plans) staged.push({ ...plan, stage: createStage(plan.src, plan.dest, plan.skillName) });
+  } catch (error) {
+    for (const plan of staged) removeRecursive(plan.stage);
+    throw error;
   }
-  console.log(args.dryRun ? "Skills that would be updated:" : "Updated skills:");
-  for (const dest of updated) console.log(`  - ${dest}`);
-  if (!args.dryRun) {
-    console.log("Restart or reload the target agent if it does not detect the updated skill automatically.");
+  const committed = [];
+  try {
+    for (const plan of staged) committed.push({ ...plan, backup: activateStage(plan.stage, plan.dest) });
+  } catch (error) {
+    rollback(committed);
+    for (const plan of staged) removeRecursive(plan.stage);
+    throw error;
   }
+  return committed;
+}
+
+function printPlans(plans, heading) {
+  console.log(heading);
+  for (const plan of plans) console.log(`  - ${plan.action}: ${plan.dest}`);
 }
 
 function printCheck(projectDir) {
+  const major = Number(process.versions.node.split(".")[0]);
+  if (major < 18) throw new Error(`Node.js 18+ is required; found ${process.version}.`);
   console.log(`Package source: ${ROOT}`);
+  console.log(`Package version: ${PACKAGE_VERSION}`);
   console.log(`Node: ${process.version}`);
   console.log(`Platform: ${process.platform} ${process.arch}`);
   console.log("Available skills:");
   for (const [key, skillName] of Object.entries(SKILLS)) {
+    sourceFor(skillName);
     console.log(`  ${key}: ${skillName}`);
   }
-  for (const skillName of Object.values(SKILLS)) {
-    for (const tool of TOOLS.filter((t) => t !== "all")) {
-      for (const scope of SCOPES) {
-        console.log(`${skillName} -> ${tool}/${scope}: ${targetFor(tool, scope, projectDir, skillName)}`);
-      }
-    }
-  }
-  console.log("Python scripts require Python 3.10+; convert_refs_to_crossrefs.py and audit_docx_report.py require lxml.");
+  console.log("Python scripts require Python 3.10+; citation conversion and report audit require lxml.");
+  console.log(`Project root used for --scope project: ${projectDir}`);
 }
 
 async function main() {
   const args = parseArgs(process.argv);
-  if (args.help) {
-    usage();
-    return;
-  }
+  if (args.help) return usage();
   if (args.command !== "install" && args.command !== "update" && !args.check) {
     throw new Error(`Unsupported command: ${args.command}`);
   }
-  if (args.check) {
-    printCheck(args.projectDir);
+  if (args.check) return printCheck(args.projectDir);
+  if (args.dryRun && args.command !== "update") throw new Error("--dry-run is only supported by the update command.");
+
+  const plans = args.command === "update"
+    ? updatePlans(args)
+    : installPlans(...Object.values(await resolveChoice(args)), args.projectDir, args.force);
+  if (plans.length === 0) {
+    console.log("No installed skills matched the selected filters.");
+    console.log("Use the install command first, or set --project-dir to the project containing the skills.");
     return;
   }
-  if (args.command === "update") {
-    updateInstalled(args);
-    return;
+  if (args.dryRun) return printPlans(plans, "Skills that would be updated:");
+  const committed = applyPlans(plans);
+  printPlans(committed, args.command === "update" ? "Updated skills:" : "Installed skills:");
+  const backups = committed.filter((item) => item.backup);
+  if (backups.length) {
+    console.log("Backups kept for recovery:");
+    for (const item of backups) console.log(`  - ${item.backup}`);
   }
-  if (args.dryRun) {
-    throw new Error("--dry-run is only supported by the update command.");
-  }
-  const { skill, tool, scope } = await resolveChoice(args);
-  const installed = [];
-  for (const skillName of selectedSkills(skill)) {
-    for (const targetTool of selectedTools(tool)) {
-      installed.push(installOne(targetTool, scope, args.projectDir, skillName, args.force));
-    }
-  }
-  console.log("Installed skills:");
-  for (const dest of installed) console.log(`  - ${dest}`);
   console.log("Restart or reload the target agent if it does not detect the new skill automatically.");
 }
 
-main().catch((err) => {
-  console.error(`Error: ${err.message}`);
+main().catch((error) => {
+  console.error(`Error: ${error.message}`);
   process.exit(1);
 });

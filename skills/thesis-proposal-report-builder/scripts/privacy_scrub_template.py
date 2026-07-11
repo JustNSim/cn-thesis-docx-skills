@@ -20,6 +20,7 @@ EP_NS = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properti
 VT_NS = "http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"
 CT_NS = "http://schemas.openxmlformats.org/package/2006/content-types"
 REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
 ET.register_namespace("cp", CP_NS)
 ET.register_namespace("dc", DC_NS)
@@ -29,6 +30,16 @@ ET.register_namespace("xsi", XSI_NS)
 ET.register_namespace("ep", EP_NS)
 ET.register_namespace("vt", VT_NS)
 ET.register_namespace("w", W_NS)
+
+
+def local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def rels_source_part(name: str) -> str | None:
+    if not name.startswith("word/_rels/") or not name.endswith(".rels"):
+        return None
+    return f"word/{name[len('word/_rels/'):-len('.rels')]}"
 
 
 def qn(ns: str, tag: str) -> str:
@@ -106,6 +117,24 @@ def strip_content_types(data: bytes, remove_embedded: bool) -> bytes:
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
+def relationship_ids_to_remove(files: dict[str, bytes], remove_external: bool, remove_embedded: bool) -> dict[str, set[str]]:
+    result: dict[str, set[str]] = {}
+    for name, data in files.items():
+        source = rels_source_part(name)
+        if source is None:
+            continue
+        root = ET.fromstring(data)
+        for child in root:
+            target = (child.get("Target") or "").lower()
+            mode = (child.get("TargetMode") or "").lower()
+            should_remove = (remove_external and mode == "external") or (
+                remove_embedded and ("embeddings/" in target or "activex/" in target)
+            )
+            if should_remove and child.get("Id"):
+                result.setdefault(source, set()).add(child.get("Id"))
+    return result
+
+
 def strip_relationships(data: bytes, remove_external: bool, remove_embedded: bool) -> bytes:
     root = ET.fromstring(data)
     for child in list(root):
@@ -127,7 +156,31 @@ def strip_relationships(data: bytes, remove_external: bool, remove_embedded: boo
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
-def scrub_word_xml(data: bytes, accept_revisions: bool, remove_hidden_text: bool) -> bytes:
+def unwrap(parent: ET.Element, child: ET.Element) -> None:
+    index = list(parent).index(child)
+    parent.remove(child)
+    for grandchild in list(child):
+        parent.insert(index, grandchild)
+        index += 1
+
+
+def remove_removed_relationship_markup(root: ET.Element, removed_ids: set[str]) -> None:
+    if not removed_ids:
+        return
+    rid = qn(R_NS, "id")
+    for parent in list(root.iter()):
+        for child in list(parent):
+            child_local = local_name(child.tag)
+            descendant_ids = {element.get(rid) for element in child.iter() if element.get(rid)}
+            if not descendant_ids.intersection(removed_ids):
+                continue
+            if child_local == "hyperlink" and child.get(rid) in removed_ids:
+                unwrap(parent, child)
+            elif child_local == "object" or child.get(rid) in removed_ids:
+                parent.remove(child)
+
+
+def scrub_word_xml(data: bytes, accept_revisions: bool, remove_hidden_text: bool, removed_ids: set[str]) -> bytes:
     try:
         root = ET.fromstring(data)
     except ET.ParseError:
@@ -149,6 +202,7 @@ def scrub_word_xml(data: bytes, accept_revisions: bool, remove_hidden_text: bool
         accept_revision_elements(root)
     if remove_hidden_text:
         remove_hidden_runs(root)
+    remove_removed_relationship_markup(root, removed_ids)
 
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
@@ -204,6 +258,10 @@ def scrub_docx(
     with zipfile.ZipFile(input_path, "r") as zin:
         files = {name: zin.read(name) for name in zin.namelist()}
 
+    removed_relationship_ids = relationship_ids_to_remove(
+        files, remove_external_relationships, remove_embedded_objects
+    )
+
     out: dict[str, bytes] = {}
     removed: list[str] = []
     changed: list[str] = []
@@ -222,7 +280,12 @@ def scrub_docx(
         elif low.endswith(".rels"):
             new_data = strip_relationships(data, remove_external_relationships, remove_embedded_objects)
         elif low.startswith("word/") and low.endswith(".xml"):
-            new_data = scrub_word_xml(data, accept_revisions, remove_hidden_text)
+            new_data = scrub_word_xml(
+                data,
+                accept_revisions,
+                remove_hidden_text,
+                removed_relationship_ids.get(name, set()),
+            )
 
         if patterns and low.endswith((".xml", ".rels")):
             new_data = replace_sensitive_text(new_data, patterns, replacement)
@@ -244,9 +307,9 @@ def main() -> None:
     parser.add_argument("--pattern", action="append", default=[], help="Sensitive literal text to replace in XML parts.")
     parser.add_argument("--replacement", default="XX", help="Replacement text for --pattern.")
     parser.add_argument("--keep-revisions", action="store_true", help="Keep tracked-change markup instead of accepting insertions/deletions.")
-    parser.add_argument("--remove-hidden-text", action="store_true", help="Remove runs marked with w:vanish.")
+    parser.add_argument("--keep-hidden-text", action="store_true", help="Keep runs marked with w:vanish.")
     parser.add_argument("--keep-external-relationships", action="store_true", help="Keep external hyperlinks/relationships.")
-    parser.add_argument("--remove-embedded-objects", action="store_true", help="Remove embedded OLE/ActiveX objects. Media images are kept.")
+    parser.add_argument("--keep-embedded-objects", action="store_true", help="Keep embedded OLE/ActiveX objects.")
     args = parser.parse_args()
 
     result = scrub_docx(
@@ -255,9 +318,9 @@ def main() -> None:
         patterns=args.pattern,
         replacement=args.replacement,
         accept_revisions=not args.keep_revisions,
-        remove_hidden_text=args.remove_hidden_text,
+        remove_hidden_text=not args.keep_hidden_text,
         remove_external_relationships=not args.keep_external_relationships,
-        remove_embedded_objects=args.remove_embedded_objects,
+        remove_embedded_objects=not args.keep_embedded_objects,
     )
     print(f"output: {result['output']}")
     print(f"removed_parts: {len(result['removed_parts'])}")

@@ -102,45 +102,52 @@ def citation_numbers(citation: str) -> list[int]:
 
 def rebuild_paragraph_with_fields(
     p: etree._Element,
-    text: str,
     citation_pat: re.Pattern,
     old_to_new: dict[int, int],
-) -> bool:
-    ppr = p.find("w:pPr", namespaces=NS)
-    preserved_ppr = copy.deepcopy(ppr) if ppr is not None else None
-    normal_rpr = first_rpr(p)
-    if normal_rpr is not None:
-        for va in normal_rpr.findall("w:vertAlign", namespaces=NS):
-            normal_rpr.remove(va)
+) -> tuple[bool, bool]:
+    """Convert only simple, single-number citations without rebuilding the paragraph.
 
+    Returns (changed, unsupported_citation_found). Multi-number/range citations and
+    citations inside complex runs are rejected rather than silently losing formatting.
+    """
+    total_citations = len(citation_pat.findall(para_text(p)))
+    handled_citations = 0
     changed = False
-    new_children: list[etree._Element] = []
-    if preserved_ppr is not None:
-        new_children.append(preserved_ppr)
-
-    pos = 0
-    for m in citation_pat.finditer(text):
-        nums = [n for n in citation_numbers(m.group(0)) if n in old_to_new]
-        if not nums:
-            continue
-        changed = True
-        if m.start() > pos:
-            new_children.append(text_run(text[pos : m.start()], normal_rpr))
-        for old_no in nums:
-            new_no = old_to_new[old_no]
-            # The reference-list number format already includes brackets, so do not add
-            # literal brackets around the REF field. This avoids [[1]] after F9.
-            new_children.extend(field_runs(f"Ref_{new_no:03d}", f"[{new_no}]", normal_rpr))
-        pos = m.end()
-    if not changed:
-        return False
-    if pos < len(text):
-        new_children.append(text_run(text[pos:], normal_rpr))
     for child in list(p):
+        if child.tag != qn("r"):
+            continue
+        text_nodes = child.findall("w:t", namespaces=NS)
+        content_nodes = [node for node in child if node.tag != qn("rPr")]
+        if len(text_nodes) != 1 or content_nodes != text_nodes:
+            continue
+        text = text_nodes[0].text or ""
+        matches = list(citation_pat.finditer(text))
+        if not matches:
+            continue
+        rpr = child.find("w:rPr", namespaces=NS)
+        replacement: list[etree._Element] = []
+        position = 0
+        for match in matches:
+            numbers = citation_numbers(match.group(0))
+            if len(numbers) != 1 or numbers[0] not in old_to_new:
+                continue
+            if match.start() > position:
+                replacement.append(text_run(text[position : match.start()], rpr))
+            new_no = old_to_new[numbers[0]]
+            replacement.extend(field_runs(f"Ref_{new_no:03d}", f"[{new_no}]", rpr))
+            position = match.end()
+            handled_citations += 1
+        if position == 0:
+            continue
+        if position < len(text):
+            replacement.append(text_run(text[position:], rpr))
+        index = list(p).index(child)
         p.remove(child)
-    for child in new_children:
-        p.append(child)
-    return True
+        for node in replacement:
+            p.insert(index, node)
+            index += 1
+        changed = True
+    return changed, handled_citations != total_citations
 
 
 def ensure_numbering(files: dict[str, bytes]) -> tuple[etree._Element, int]:
@@ -300,9 +307,19 @@ def convert(input_path: Path, output_path: Path, ref_heading: str, preserve_orde
     old_to_new = {old: i + 1 for i, old in enumerate(final_old_order)}
 
     converted = 0
+    unsupported = []
     for p in paras[:heading_idx]:
-        if rebuild_paragraph_with_fields(p, para_text(p), citation_pat, old_to_new):
+        changed, has_unsupported = rebuild_paragraph_with_fields(p, citation_pat, old_to_new)
+        if has_unsupported:
+            unsupported.append(para_text(p)[:160])
+        if changed:
             converted += 1
+    if unsupported:
+        examples = "; ".join(repr(text) for text in unsupported[:3])
+        raise RuntimeError(
+            "Only standalone [n] citations in simple text runs can be converted safely. "
+            f"Found unsupported combined, range, or rich-text citations: {examples}"
+        )
 
     first_ref_ppr = copy.deepcopy(ref_items[0][2].find("w:pPr", namespaces=NS)) if ref_items[0][2].find("w:pPr", namespaces=NS) is not None else None
     first_ref_rpr = first_rpr(ref_items[0][2])

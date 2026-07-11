@@ -1,6 +1,6 @@
 {
   "name": "cn-thesis-docx-skills",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Agent skills for Chinese thesis literature review and proposal DOCX generation.",
   "type": "commonjs",
   "bin": {
@@ -15,7 +15,9 @@
   "scripts": {
     "install-skills": "node bin/install.js",
     "update-skills": "node bin/install.js update",
-    "check": "node bin/install.js --check"
+    "check": "node bin/install.js --check",
+    "test": "node --test tests/*.test.js",
+    "prepublishOnly": "npm run check && npm test"
   },
   "engines": {
     "node": ">=18"

@@ -63,6 +63,12 @@ def field_report(root: etree._Element) -> tuple[int, int, int]:
 def audit(path: Path, ref_heading: str) -> dict:
     with zipfile.ZipFile(path) as zf:
         root = etree.fromstring(zf.read("word/document.xml"))
+        todo_parts = []
+        for name in zf.namelist():
+            if name.startswith("word/") and name.endswith(".xml"):
+                text = zf.read(name).decode("utf-8", errors="ignore")
+                if "TODO:" in text or "待核验" in text:
+                    todo_parts.append(name)
     paras = root.findall(".//w:body/w:p", NS)
     texts = [para_text(p).strip() for p in paras]
     heading_idx = next((i for i, text in enumerate(texts) if text == ref_heading), None)
@@ -97,7 +103,18 @@ def audit(path: Path, ref_heading: str) -> dict:
         "possible_collapsed_references": [
             r[:180] for r in refs if len(re.findall(r"\[\d+\]", r)) > 1
         ][:10],
+        "todo_or_unverified_parts": todo_parts,
     }
+
+
+def strict_failures(report: dict) -> list[str]:
+    failures = []
+    if not report["reference_heading_found"]:
+        failures.append("reference_heading_found")
+    for key in ("double_bracket_paragraphs", "duplicate_reference_count", "possible_collapsed_references", "todo_or_unverified_parts"):
+        if report[key]:
+            failures.append(key)
+    return failures
 
 
 def main() -> None:
@@ -105,6 +122,7 @@ def main() -> None:
     parser.add_argument("docx", type=Path)
     parser.add_argument("--ref-heading", default="参考文献")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--strict", action="store_true", help="Exit nonzero on unresolved TODOs or citation-integrity findings.")
     args = parser.parse_args()
 
     report = audit(args.docx, args.ref_heading)
@@ -113,6 +131,8 @@ def main() -> None:
     else:
         for key, value in report.items():
             print(f"{key}: {value}")
+    if args.strict and strict_failures(report):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

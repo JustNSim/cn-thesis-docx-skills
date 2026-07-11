@@ -23,7 +23,7 @@ Before publishing a bundled template:
 - remove document properties that expose author, organization, path, revision history, comments, or hidden text;
 - inspect headers, footers, watermarks, custom XML, embedded objects, and alt text;
 - replace school/college/profession-specific labels with generic placeholders;
-- run `scripts/privacy_scrub_template.py` and then `scripts/inspect_docx_template.py` before release;
+- run `scripts/privacy_scrub_template.py input.docx output.docx` and then `scripts/inspect_docx_template.py output.docx --strict` before release;
 - ensure the template can be used legally and ethically as a generic academic-document skeleton;
 - keep templates editable rather than screenshot-based.
 

@@ -19,7 +19,7 @@ The literature review should emphasize:
 
 ## Required Decisions
 
-Ask before high-impact choices:
+Ask only when the user has not already specified a high-impact choice:
 
 - whether to use the user's DOCX template or the bundled base template;
 - whether the user needs only Markdown, only DOCX, or both;
@@ -59,7 +59,8 @@ Proceed with reasonable defaults for minor typography and file naming.
    - Work on a copy of the template.
    - Preserve template styles, section settings, headers/footers, TOC fields, and heading levels.
    - Convert citations to Word REF fields when renumbering may be needed.
-   - Update fields and TOC, then audit citations and layout.
+   - Run `inspect_docx_template.py <output> --strict` and `audit_docx_report.py <output> --strict` before delivery.
+   - Update fields and TOC in Word or LibreOffice, then render and inspect pages. If field update or visual inspection is unavailable, report that limitation instead of claiming layout validation.
 
 ## Figure And Table Guidance
 
@@ -78,6 +79,8 @@ Proceed with reasonable defaults for minor typography and file naming.
 - `scripts/privacy_scrub_template.py`: scrub DOCX templates before public release.
 - `scripts/audit_docx_report.py`: inspect bibliography paragraphs, citation fields, superscript state, duplicate brackets, and bookmarks.
 - `scripts/convert_refs_to_crossrefs.py`: convert plain numeric citations and bibliography entries into Word REF fields and automatic `[n]` reference numbering.
+
+The converter only accepts standalone `[n]` citations contained in a simple text run. It intentionally rejects combined/range citations and citations in rich-text structures so that it never silently loses formatting.
 
 Install Python script dependencies when needed:
 
