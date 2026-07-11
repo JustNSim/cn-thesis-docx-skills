@@ -1,0 +1,4 @@
+interface:
+  display_name: "Thesis Proposal Report Builder"
+  short_description: "Build Chinese thesis proposal/opening DOCX."
+  default_prompt: "Use $thesis-proposal-report-builder to turn my research introduction and template into a Chinese thesis proposal report."

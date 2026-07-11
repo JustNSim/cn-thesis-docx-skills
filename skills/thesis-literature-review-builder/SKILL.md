@@ -1,0 +1,93 @@
+---
+name: thesis-literature-review-builder
+description: Build Chinese undergraduate or graduate thesis/design literature review reports from a user's research introduction, requirements, references, and optional DOCX template. Use when creating or revising 中文文献综述, 毕业论文文献综述, 毕业设计文献综述, 研究现状综述, related work review, template-faithful Word/DOCX literature review documents, numbered citations, reference lists, Word cross-references, superscript citations, or DOCX layout validation for a literature review.
+---
+
+# Thesis Literature Review Builder
+
+## Core Use
+
+Use this skill to turn a user's research introduction document into a Chinese university thesis/design literature review, with Markdown drafting and template-faithful DOCX output.
+
+The literature review should emphasize:
+
+- research direction overview;
+- domestic and international research status;
+- method categories and technical lineage;
+- limitations, trends, and summary analysis;
+- verified references and correctly numbered citations.
+
+## Required Decisions
+
+Ask before high-impact choices:
+
+- whether to use the user's DOCX template or the bundled base template;
+- whether the user needs only Markdown, only DOCX, or both;
+- research title, research object, and review scope;
+- citation style and whether numbering must follow first appearance;
+- whether references should be retrieved, verified, or only formatted from a provided list.
+
+Proceed with reasonable defaults for minor typography and file naming.
+
+## Workflow
+
+1. **Read inputs**
+   - Research introduction, topic description, requirements, previous drafts, references, and optional template.
+   - If using the bundled template, prefer `assets/base-templates/literature-review-template.docx`.
+
+2. **Confirm review frame**
+   - Identify the research object, review boundary, subfields, and key problem chain.
+   - Keep the literature review distinct from the proposal: write research status and gaps, not a full implementation plan.
+
+3. **Plan the outline**
+   - Use the user's template if supplied.
+   - Otherwise use a structure like: research direction overview; domestic/foreign research status; research status summary and analysis; references.
+   - Use third-level headings when method categories need internal comparison.
+
+4. **Draft Markdown first**
+   - Produce `outputs/literature-review.md` unless the user requests another path.
+   - Add figure placeholders with suggested source, content, and placement.
+   - Mark unverified claims as `TODO: 待核验`.
+
+5. **Finalize references**
+   - Verify references when external lookup is available or when the user requests it.
+   - Do not fabricate authors, years, venues, page numbers, DOI, URLs, or experimental claims.
+   - Deduplicate by normalized title, DOI, arXiv ID, or URL.
+   - Number by first appearance unless the required style says otherwise.
+
+6. **Build and validate DOCX**
+   - Work on a copy of the template.
+   - Preserve template styles, section settings, headers/footers, TOC fields, and heading levels.
+   - Convert citations to Word REF fields when renumbering may be needed.
+   - Update fields and TOC, then audit citations and layout.
+
+## Figure And Table Guidance
+
+- When the user asks for figure support, provide the figure title, recommended placement, key elements, and an optional drawing prompt. Do not generate images unless the current agent environment explicitly supports image generation and the user requests it.
+- Use concise, formal noun-phrase captions for tables and figures. Avoid sentence-style captions such as "介绍了...", "展示了...", "说明了...", or "分析了...".
+- Prefer captions like "智能合约漏洞检测方法分类", "代表性研究工作对比", or "DeFi 漏洞检测技术谱系".
+
+## References To Load
+
+- Read `references/docx-crossrefs.md` before modifying numbered references, Word fields, superscript citations, or bibliography order.
+- Read `references/template-policy.md` before using, anonymizing, or publishing bundled templates.
+
+## Bundled Scripts
+
+- `scripts/inspect_docx_template.py`: audit template metadata, comments, tracked changes, hidden text, sensitive text hits, and external relationships.
+- `scripts/privacy_scrub_template.py`: scrub DOCX templates before public release.
+- `scripts/audit_docx_report.py`: inspect bibliography paragraphs, citation fields, superscript state, duplicate brackets, and bookmarks.
+- `scripts/convert_refs_to_crossrefs.py`: convert plain numeric citations and bibliography entries into Word REF fields and automatic `[n]` reference numbering.
+
+Install Python script dependencies when needed:
+
+```bash
+python -m pip install -r scripts/requirements.txt
+```
+
+## Output Defaults
+
+- `outputs/literature-review.md`
+- `outputs/literature-review.docx`
+
+Chinese-only projects may use `outputs/文献综述.md` and `outputs/文献综述.docx` when that better matches the user's existing files.
