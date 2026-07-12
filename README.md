@@ -21,51 +21,48 @@
 
 ## 安装
 
-交互式安装：
-
 ```bash
 git clone https://github.com/JustNSim/cn-thesis-docx-skills.git
 cd cn-thesis-docx-skills
 node bin/install.js install
 ```
 
-也可以指定安装内容、工具和范围：
-
-```bash
-node bin/install.js install --skill review --tool codex --scope global
-node bin/install.js install --skill proposal --tool claude --scope project
-node bin/install.js install --skill all --tool opencode --scope global
-```
-
-参数说明：
-
-- `--skill review|proposal|all`：安装文献综述、开题报告或全部
-- `--tool codex|claude|opencode|agents|all`：选择目标工具
-- `--scope global|project`：安装到全局或当前项目
+按提示选择 skill、目标工具、全局或项目级安装即可。
 
 ## 更新
-
-更新已经安装的 Skills：
 
 ```bash
 git pull --ff-only
 node bin/install.js update
 ```
 
-先在克隆的仓库中执行 `git pull --ff-only` 获取 GitHub 最新版本，再运行安装器。安装器会查找当前项目与全局目录中已经安装的 Skills，只更新已存在的项目；它不会自行联网下载版本。安装器会记录受管文件；检测到本地修改或旧版手工安装时会停止，避免静默覆盖。确认需要替换时使用 `--force`，原目录会保留同级备份。也可以限定更新范围：
+全局安装：直接运行上面的命令即可。
+
+项目级安装：需要再加 `--project-dir <你安装 skill 的项目路径>`。例如：
 
 ```bash
-node bin/install.js update --skill review --tool codex --scope global
-node bin/install.js update --skill proposal --scope project
+node bin/install.js update --project-dir ~/my-thesis
 ```
 
-更新前查看将被覆盖的目录：
+更新后如果没有立即生效，请重启或重新加载对应的 Agent。
+
+## 进阶参数
+
+- `--skill review|proposal|all`：指定安装或更新文献综述、开题报告或全部。
+- `--tool codex|claude|opencode|agents|all`：指定目标工具。
+- `--scope global|project`：指定全局或项目级安装。
+- `--project-dir <path>`：操作其他项目目录里的 skills；项目级更新通常需要显式提供。
+- `--dry-run`：更新前预览会被覆盖的目录。
+- `--force`：本地有改动或旧版手工安装时强制替换，原目录会保留同级备份。
+
+示例：
 
 ```bash
+node bin/install.js install --skill review --tool codex --scope global
+node bin/install.js install --skill proposal --tool claude --scope project --project-dir ~/my-thesis
 node bin/install.js update --dry-run
+node bin/install.js update --skill proposal --scope project --project-dir ~/my-thesis
 ```
-
-如果 Skills 安装在其他项目目录，可增加 `--project-dir <path>`。更新后如未立即生效，请重启或重新加载对应的 Agent。
 
 ## DOCX 工具与发布前检查
 
@@ -79,7 +76,7 @@ python scripts/inspect_docx_template.py output.docx --strict
 # 最终报告：检查 TODO、重复参考文献、双括号和参考文献段落完整性
 python scripts/audit_docx_report.py report.docx --strict
 
-# 仅转换“纯文本 run 内的独立 [n]”引文；组合/范围/富文本引文会明确失败，避免损坏格式
+# 仅转换“纯文本 run 内的独立 [n]”引用；组合/范围/富文本引用会明确失败，避免损坏格式
 python scripts/convert_refs_to_crossrefs.py input.docx output.docx
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "cn-thesis-docx-skills",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Agent skills for Chinese thesis literature review and proposal DOCX generation.",
   "type": "commonjs",
   "bin": {
@@ -10,7 +10,9 @@
     "README.md",
     "skills/",
     "bin/",
-    "package.json"
+    "package.json",
+    "!skills/**/__pycache__/**",
+    "!skills/**/*.pyc"
   ],
   "scripts": {
     "install-skills": "node bin/install.js",

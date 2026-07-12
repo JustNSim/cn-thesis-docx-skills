@@ -44,3 +44,11 @@ test("installer reports missing option values clearly", () => {
   assert.notStrictEqual(result.status, 0);
   assert.match(result.stderr, /--project-dir requires a value/);
 });
+
+test("project update with no matches explains --project-dir", () => {
+  const result = run(["update", "--skill", "review", "--tool", "codex", "--scope", "project"]);
+  assert.strictEqual(result.status, 0, result.stderr);
+  assert.match(result.stdout, /No installed skills matched/);
+  assert.match(result.stdout, /node bin\/install\.js update --project-dir <path-to-that-project>/);
+  assert.match(result.stdout, /source repo/);
+});

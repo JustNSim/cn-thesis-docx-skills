@@ -20,16 +20,16 @@ const SCOPES = ["global", "project"];
 
 function usage() {
   console.log(`Usage:
-  npx cn-thesis-docx-skills install
-  npx cn-thesis-docx-skills@latest update
-  cn-thesis-docx-skills install --skill review --tool codex --scope global
-  cn-thesis-docx-skills update --skill proposal --scope project
+  node bin/install.js install
+  node bin/install.js update
+  node bin/install.js install --skill review --tool codex --scope global
+  node bin/install.js update --skill proposal --scope project --project-dir <path>
 
 Options:
   --skill <review|proposal|all>
   --tool <codex|claude|opencode|agents|all>
   --scope <global|project>
-  --project-dir <path>      Defaults to the current working directory
+  --project-dir <path>      Project directory for project-scoped installs/updates
   --force                   Replace a modified or legacy installation (a backup is kept)
   --dry-run                 Show changes without updating (update only)
   --check                   Validate package source and print compatibility information
@@ -324,6 +324,19 @@ function printPlans(plans, heading) {
   for (const plan of plans) console.log(`  - ${plan.action}: ${plan.dest}`);
 }
 
+function printNoMatch(args) {
+  console.log("No installed skills matched the selected filters.");
+  console.log("Use the install command first, or adjust --skill/--tool/--scope filters.");
+  if (args.command === "update") {
+    console.log(`Project directory scanned for --scope project: ${args.projectDir}`);
+    console.log("If the skill was installed into another project, run:");
+    console.log("  node bin/install.js update --project-dir <path-to-that-project>");
+    if (path.resolve(args.projectDir) === ROOT) {
+      console.log("You are running from the cn-thesis-docx-skills source repo; project-scoped installs usually live in your thesis/project folder, not here.");
+    }
+  }
+}
+
 function printCheck(projectDir) {
   const major = Number(process.versions.node.split(".")[0]);
   if (major < 18) throw new Error(`Node.js 18+ is required; found ${process.version}.`);
@@ -353,8 +366,7 @@ async function main() {
     ? updatePlans(args)
     : installPlans(...Object.values(await resolveChoice(args)), args.projectDir, args.force);
   if (plans.length === 0) {
-    console.log("No installed skills matched the selected filters.");
-    console.log("Use the install command first, or set --project-dir to the project containing the skills.");
+    printNoMatch(args);
     return;
   }
   if (args.dryRun) return printPlans(plans, "Skills that would be updated:");
