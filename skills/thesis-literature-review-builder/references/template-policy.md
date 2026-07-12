@@ -32,7 +32,10 @@ Before publishing a bundled template:
 When generating DOCX:
 
 - use existing heading styles instead of manual font sizes where possible;
+- write the thesis title into the template's cover title position. Preserve the large cover-title paragraph or content-control style; do not create a normal body heading as the title substitute;
+- replace mapped content slots in place. Remove body sample content, sample pictures, sample captions, and example tables when they do not match the user's topic;
 - preserve section breaks, page setup, headers/footers, and TOC fields;
+- update the table of contents after headings and page breaks change. If Word or LibreOffice is unavailable, set fields to update on open and report that the TOC was not visually verified;
 - do not flatten the document into images;
 - do not overwrite the user's original template;
 - create a timestamped backup before risky structural rewrites.

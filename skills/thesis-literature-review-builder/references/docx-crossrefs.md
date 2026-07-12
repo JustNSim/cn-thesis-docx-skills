@@ -53,6 +53,12 @@ When adding references to an existing DOCX:
 7. Update fields and TOC.
 8. Audit for duplicate brackets, missing bookmarks, stale numbers, and bibliography entries with no line break.
 
+Every numbered bibliography entry must be cited in the body. If a reference is useful background but not cited, either add a meaningful in-text citation where it supports a claim or remove it from the final numbered list.
+
+## Reference Paragraph Indent
+
+Use a compact hanging indent for the bibliography. Continuation lines should align near the text after `[n]`. A practical default is `left=420` twips and `hanging=420` twips, with the tab stop at the same position. Do not leave a large inherited paragraph indent from the template.
+
 ## Bibliography Formatting Pitfalls
 
 Check these issues explicitly:
@@ -63,6 +69,7 @@ Check these issues explicitly:
 - duplicate references differing only by spaces, punctuation, DOI case, or URL suffix;
 - references cited in text but absent from bibliography;
 - bibliography entries present but never cited, if the style requires cited-only references.
+- continuation lines in the reference list indented far beyond the `[n]` label width.
 
 ## Field Update Notes
 

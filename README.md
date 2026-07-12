@@ -11,6 +11,7 @@
 - 按用户提供或内置 DOCX 模板排版
 - 整理参考文献编号、正文上标引用和 Word 交叉引用
 - 检查 DOCX 中的参考文献、引用编号和格式问题
+- 在 Markdown 和 DOCX 阶段检查学位层次、封面标题、目录、引用覆盖、参考文献缩进和常见 AI 化表达
 
 ## 包含哪些 Skills
 
@@ -69,18 +70,21 @@ node bin/install.js update --skill proposal --scope project --project-dir ~/my-t
 进入对应 skill 的目录后执行。所有清理操作都应写到新文件，确认通过后再替换源文件。
 
 ```bash
+# 草稿：检查学位层次、引用覆盖和常见 AI 化表达
+python scripts/audit_markdown_report.py draft.md --degree 博士 --strict
+
 # 公开模板：清除元数据、修订、隐藏文字、外部关系和 OLE/ActiveX，再作严格审计
 python scripts/privacy_scrub_template.py input.docx output.docx
 python scripts/inspect_docx_template.py output.docx --strict
 
 # 最终报告：检查 TODO、重复参考文献、双括号和参考文献段落完整性
-python scripts/audit_docx_report.py report.docx --strict
+python scripts/audit_docx_report.py report.docx --title "论文题目" --strict
 
 # 仅转换“纯文本 run 内的独立 [n]”引用；组合/范围/富文本引用会明确失败，避免损坏格式
 python scripts/convert_refs_to_crossrefs.py input.docx output.docx
 ```
 
-脚本只负责 OOXML 结构和引文检查。最终交付前仍须在 Word 或 LibreOffice 更新字段和目录，并渲染/逐页检查页码、表格、图片、字体及文字溢出；若环境无法完成该步骤，应明确标记为“未完成视觉验收”。
+脚本只负责 OOXML 结构、封面标题、目录字段和引文检查。最终交付前仍须在 Word 或 LibreOffice 更新字段和目录，并渲染/逐页检查页码、表格、图片、字体及文字溢出；若环境无法完成该步骤，应明确标记为“未完成目录/视觉验收”。
 
 ## 怎么使用
 
@@ -101,7 +105,7 @@ python scripts/convert_refs_to_crossrefs.py input.docx output.docx
 - DOCX 模板（可选）
 - 已有论文、参考文献或相关资料（可选；也可以由 Agent 协助检索）
 
-首次生成 DOCX 前，skill 会确认模板模式与正文目标字数/区间（并确认封面、目录、参考文献等是否计入）。已明确指定用户模板或内置 base template 时不会重复询问，但仍必须补齐缺失的字数要求。DOCX 必须在模板副本中原位编辑；不得删除模板正文后用通用 Word 标题样式重建，也不得在模板自动编号的标题前手工添加中文或阿拉伯编号。
+首次生成 Markdown 或 DOCX 前，skill 会确认模板模式、正文目标字数/区间和学位层次。本科、硕士、博士或其他需由用户选择；封面、目录、参考文献等是否计入字数也要确认。已明确指定用户模板或内置 base template 时不会重复询问，但仍必须补齐缺失的字数和学位要求。DOCX 必须在模板副本中原位编辑；论文题目要写入封面原有的大号标题位置；与用户主题无关的示例图片、图题、示例表格和占位正文要删除；生成后要更新目录。不得删除模板正文后用通用 Word 标题样式重建，也不得在模板自动编号的标题前手工添加中文或阿拉伯编号。
 
 ## 模板与引用处理
 
@@ -109,6 +113,8 @@ python scripts/convert_refs_to_crossrefs.py input.docx output.docx
 - 也可以使用内置通用模板
 - 支持将普通 `[1]` 引用转换为 Word 交叉引用
 - 正文引用默认使用上标形式
+- 每条编号参考文献都应在正文中有对应引用；正文引用应转换为 Word 交叉引用并保持右上角上标
+- 参考文献段落使用紧凑悬挂缩进，第二行起应靠近 `[n]` 后正文起点
 - 避免 Word 更新域后出现 `[[1]]`
 - 支持参考文献去重、重排编号和基础审计
 - 更新不会静默覆盖本地修改，并会为替换操作保留备份

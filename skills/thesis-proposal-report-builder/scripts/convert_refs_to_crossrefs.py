@@ -17,6 +17,7 @@ NS = {
 }
 W = NS["w"]
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+REFERENCE_INDENT_TWIPS = "420"
 
 
 def qn(tag: str) -> str:
@@ -182,10 +183,10 @@ def ensure_numbering(files: dict[str, bytes]) -> tuple[etree._Element, int]:
     tabs = etree.SubElement(ppr, qn("tabs"))
     tab = etree.SubElement(tabs, qn("tab"))
     tab.set(qn("val"), "num")
-    tab.set(qn("pos"), "420")
+    tab.set(qn("pos"), REFERENCE_INDENT_TWIPS)
     ind = etree.SubElement(ppr, qn("ind"))
-    ind.set(qn("left"), "420")
-    ind.set(qn("hanging"), "420")
+    ind.set(qn("left"), REFERENCE_INDENT_TWIPS)
+    ind.set(qn("hanging"), REFERENCE_INDENT_TWIPS)
     root.append(abstract)
 
     num = etree.Element(qn("num"))
@@ -206,6 +207,22 @@ def add_numpr(p: etree._Element, num_id: int) -> None:
     etree.SubElement(numpr, qn("ilvl")).set(qn("val"), "0")
     etree.SubElement(numpr, qn("numId")).set(qn("val"), str(num_id))
     ppr.append(numpr)
+
+
+def apply_reference_indent(ppr: etree._Element) -> None:
+    for old in ppr.findall("w:ind", namespaces=NS):
+        ppr.remove(old)
+    for old in ppr.findall("w:tabs", namespaces=NS):
+        ppr.remove(old)
+    tabs = etree.Element(qn("tabs"))
+    tab = etree.SubElement(tabs, qn("tab"))
+    tab.set(qn("val"), "num")
+    tab.set(qn("pos"), REFERENCE_INDENT_TWIPS)
+    ind = etree.Element(qn("ind"))
+    ind.set(qn("left"), REFERENCE_INDENT_TWIPS)
+    ind.set(qn("hanging"), REFERENCE_INDENT_TWIPS)
+    ppr.append(tabs)
+    ppr.append(ind)
 
 
 def add_bookmark(p: etree._Element, name: str, bm_id: int) -> None:
@@ -234,6 +251,11 @@ def make_ref_para(text: str, ppr_template: etree._Element | None, rpr: etree._El
         ppr = copy.deepcopy(ppr_template)
         for old in ppr.findall("w:numPr", namespaces=NS):
             ppr.remove(old)
+        apply_reference_indent(ppr)
+        p.append(ppr)
+    else:
+        ppr = etree.Element(qn("pPr"))
+        apply_reference_indent(ppr)
         p.append(ppr)
     p.append(text_run(text, rpr))
     return p
