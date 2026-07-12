@@ -1,5 +1,7 @@
 # cn-thesis-docx-skills
 
+> 当前通过 GitHub 源码仓库分发，**尚未发布到 npm**。因此不要使用 `npx cn-thesis-docx-skills` 或 `npx cn-thesis-docx-skills@latest`；这两条命令会返回 npm 404。
+
 用于中文高校本科/研究生毕业论文、毕业设计材料写作的 Agent Skills，重点支持**文献综述**和**开题报告**的草稿生成、DOCX 模板排版、参考文献编号与正文引用处理。
 
 ## 适合做什么
@@ -22,15 +24,17 @@
 交互式安装：
 
 ```bash
-npx cn-thesis-docx-skills install
+git clone https://github.com/JustNSim/cn-thesis-docx-skills.git
+cd cn-thesis-docx-skills
+node bin/install.js install
 ```
 
 也可以指定安装内容、工具和范围：
 
 ```bash
-npx cn-thesis-docx-skills install --skill review --tool codex --scope global
-npx cn-thesis-docx-skills install --skill proposal --tool claude --scope project
-npx cn-thesis-docx-skills install --skill all --tool opencode --scope global
+node bin/install.js install --skill review --tool codex --scope global
+node bin/install.js install --skill proposal --tool claude --scope project
+node bin/install.js install --skill all --tool opencode --scope global
 ```
 
 参数说明：
@@ -44,20 +48,21 @@ npx cn-thesis-docx-skills install --skill all --tool opencode --scope global
 更新已经安装的 Skills：
 
 ```bash
-npx cn-thesis-docx-skills@latest update
+git pull --ff-only
+node bin/install.js update
 ```
 
-该命令会拉取 npm 上的最新版本，并自动查找当前项目与全局目录中已经安装的 Skills，只更新已存在的项目。安装器会记录受管文件；检测到本地修改或旧版手工安装时会停止，避免静默覆盖。确认需要替换时使用 `--force`，原目录会保留同级备份。也可以限定更新范围：
+先在克隆的仓库中执行 `git pull --ff-only` 获取 GitHub 最新版本，再运行安装器。安装器会查找当前项目与全局目录中已经安装的 Skills，只更新已存在的项目；它不会自行联网下载版本。安装器会记录受管文件；检测到本地修改或旧版手工安装时会停止，避免静默覆盖。确认需要替换时使用 `--force`，原目录会保留同级备份。也可以限定更新范围：
 
 ```bash
-npx cn-thesis-docx-skills@latest update --skill review --tool codex --scope global
-npx cn-thesis-docx-skills@latest update --skill proposal --scope project
+node bin/install.js update --skill review --tool codex --scope global
+node bin/install.js update --skill proposal --scope project
 ```
 
 更新前查看将被覆盖的目录：
 
 ```bash
-npx cn-thesis-docx-skills@latest update --dry-run
+node bin/install.js update --dry-run
 ```
 
 如果 Skills 安装在其他项目目录，可增加 `--project-dir <path>`。更新后如未立即生效，请重启或重新加载对应的 Agent。
