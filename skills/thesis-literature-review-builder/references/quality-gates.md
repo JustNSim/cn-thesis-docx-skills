@@ -9,7 +9,8 @@ After drafting Markdown:
 1. Check degree alignment against the preflight choice: `本科`, `硕士`, `博士`, or `其他`.
 2. Check references and citations. Every numbered reference should be cited in the body, and every body citation should have a matching reference.
 3. Reduce formulaic wording. Avoid the pattern `不是...而是...`; replace long dashes with commas, semicolons, or separate sentences; explain terms in normal sentences instead of short parenthetical notes when possible.
-4. Run:
+4. Check non-heading numbering against `numbering-style.md`. Use `（一）` for standalone lead points, `（1）` for lower-level items, and `a.` for short third-level details. Do not mix `1.`, `一、`, `1)`, and `①` as body numbering.
+5. Run:
 
 ```bash
 python scripts/audit_markdown_report.py <draft.md> --degree <本科|硕士|博士|其他> --strict

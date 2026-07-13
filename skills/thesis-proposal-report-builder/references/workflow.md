@@ -24,6 +24,7 @@ Adjust the structure to the user's institutional template when one is supplied.
 - Connect each research content to a method, validation plan, and expected outcome.
 - Use related work to justify the research gap rather than writing a full literature review.
 - Ask for real schedule dates when the user has not provided them.
+- Follow `numbering-style.md` for non-heading numbered points: `（一）` for standalone lead points, `（1）` for lower-level body items, and `a.` for short third-level details.
 
 ## DOCX Focus
 

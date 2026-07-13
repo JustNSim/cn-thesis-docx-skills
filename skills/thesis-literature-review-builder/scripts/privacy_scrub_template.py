@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from lxml import etree as LET
+
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 CP_NS = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
 DC_NS = "http://purl.org/dc/elements/1.1/"
@@ -164,6 +166,54 @@ def unwrap(parent: ET.Element, child: ET.Element) -> None:
         index += 1
 
 
+def local_name_lxml(element: LET._Element) -> str:
+    return LET.QName(element).localname
+
+
+def unwrap_lxml(child: LET._Element) -> None:
+    parent = child.getparent()
+    if parent is None:
+        return
+    index = parent.index(child)
+    parent.remove(child)
+    for grandchild in list(child):
+        parent.insert(index, grandchild)
+        index += 1
+
+
+def accept_revision_elements_lxml(root: LET._Element) -> None:
+    for child in list(root.xpath(".//*[local-name()='del' or local-name()='moveFrom']")):
+        parent = child.getparent()
+        if parent is not None:
+            parent.remove(child)
+    for child in list(root.xpath(".//*[local-name()='ins' or local-name()='moveTo']")):
+        unwrap_lxml(child)
+
+
+def remove_hidden_runs_lxml(root: LET._Element) -> None:
+    for run in list(root.xpath(".//*[local-name()='r'][.//*[local-name()='vanish']]")):
+        parent = run.getparent()
+        if parent is not None:
+            parent.remove(run)
+
+
+def remove_removed_relationship_markup_lxml(root: LET._Element, removed_ids: set[str]) -> None:
+    if not removed_ids:
+        return
+    rid = qn(R_NS, "id")
+    for child in list(root.xpath(".//*[@r:id]", namespaces={"r": R_NS})):
+        if child.get(rid) not in removed_ids:
+            continue
+        parent = child.getparent()
+        if parent is None:
+            continue
+        local = local_name_lxml(child)
+        if local == "hyperlink":
+            unwrap_lxml(child)
+        else:
+            parent.remove(child)
+
+
 def remove_removed_relationship_markup(root: ET.Element, removed_ids: set[str]) -> None:
     if not removed_ids:
         return
@@ -182,8 +232,8 @@ def remove_removed_relationship_markup(root: ET.Element, removed_ids: set[str]) 
 
 def scrub_word_xml(data: bytes, accept_revisions: bool, remove_hidden_text: bool, removed_ids: set[str]) -> bytes:
     try:
-        root = ET.fromstring(data)
-    except ET.ParseError:
+        root = LET.fromstring(data)
+    except LET.XMLSyntaxError:
         return data
 
     for el in root.iter():
@@ -192,19 +242,24 @@ def scrub_word_xml(data: bytes, accept_revisions: bool, remove_hidden_text: bool
             if local.startswith("rsid") or local in {"author", "date", "initials", "userId"}:
                 del el.attrib[attr]
 
-    for parent in root.iter():
-        for child in list(parent):
-            local = child.tag.rsplit("}", 1)[-1]
-            if local in {"commentRangeStart", "commentRangeEnd", "commentReference", "proofErr", "permStart", "permEnd"}:
-                parent.remove(child)
+    for child in list(
+        root.xpath(
+            ".//*[local-name()='commentRangeStart' or local-name()='commentRangeEnd' "
+            "or local-name()='commentReference' or local-name()='proofErr' "
+            "or local-name()='permStart' or local-name()='permEnd']"
+        )
+    ):
+        parent = child.getparent()
+        if parent is not None:
+            parent.remove(child)
 
     if accept_revisions:
-        accept_revision_elements(root)
+        accept_revision_elements_lxml(root)
     if remove_hidden_text:
-        remove_hidden_runs(root)
-    remove_removed_relationship_markup(root, removed_ids)
+        remove_hidden_runs_lxml(root)
+    remove_removed_relationship_markup_lxml(root, removed_ids)
 
-    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    return LET.tostring(root, encoding="UTF-8", xml_declaration=True, standalone=True)
 
 
 def accept_revision_elements(root: ET.Element) -> None:

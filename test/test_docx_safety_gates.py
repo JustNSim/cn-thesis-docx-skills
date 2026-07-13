@@ -9,6 +9,7 @@ from lxml import etree
 ROOT = Path(__file__).resolve().parents[1]
 AUDIT_PATH = ROOT / "skills" / "thesis-literature-review-builder" / "scripts" / "audit_docx_report.py"
 CONVERTER_PATH = ROOT / "skills" / "thesis-literature-review-builder" / "scripts" / "convert_refs_to_crossrefs.py"
+PRIVACY_PATH = ROOT / "skills" / "thesis-literature-review-builder" / "scripts" / "privacy_scrub_template.py"
 
 
 def load_module(name: str, path: Path):
@@ -21,6 +22,7 @@ def load_module(name: str, path: Path):
 
 audit = load_module("audit_docx_report", AUDIT_PATH)
 converter = load_module("convert_refs_to_crossrefs", CONVERTER_PATH)
+privacy = load_module("privacy_scrub_template", PRIVACY_PATH)
 W = audit.W
 
 
@@ -74,6 +76,18 @@ def test_duplicate_figure_list_entry_is_rejected():
     issues = audit.caption_list_duplicate_issues([paragraph])
     assert issues
     assert issues[0]["label"] == "图"
+
+
+def test_privacy_scrub_preserves_ignorable_namespace_prefixes():
+    data = (
+        b'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+        b'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" '
+        b'xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" '
+        b'mc:Ignorable="w14"><w:body><w:p><w:r><w:t>Text</w:t></w:r></w:p></w:body></w:document>'
+    )
+    out = privacy.scrub_word_xml(data, accept_revisions=True, remove_hidden_text=True, removed_ids=set())
+    assert b"mc:Ignorable=\"w14\"" in out
+    assert b"xmlns:w14=" in out
 
 
 def test_embedded_single_citation_is_converted():

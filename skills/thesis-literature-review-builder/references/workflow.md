@@ -20,6 +20,7 @@ Adjust the structure to the user's institutional template when one is supplied.
 - Compare representative methods by object, mechanism, advantage, and limitation.
 - End each major subsection with a compact summary.
 - Reserve proposal-specific items such as technical route, feasibility, schedule, and expected outcomes for the proposal skill.
+- Follow `numbering-style.md` for non-heading numbered points: `（一）` for standalone lead points, `（1）` for lower-level body items, and `a.` for short third-level details.
 
 ## DOCX Focus
 

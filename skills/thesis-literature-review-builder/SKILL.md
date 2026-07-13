@@ -57,6 +57,7 @@ If the user explicitly requests the bundled base template or supplies a template
    - Add figure placeholders with suggested source, content, and placement.
    - Mark unverified claims as `TODO: 待核验`.
    - Avoid formulaic AI-sounding patterns such as `不是...而是...`, long dashes, and short parenthetical explanations when a normal sentence can explain the term.
+   - Follow `references/numbering-style.md` when body paragraphs need non-heading numbered points.
    - Run `audit_markdown_report.py <draft.md> --degree <本科|硕士|博士|其他> --strict`; revise until degree alignment, citations, references, and style findings pass.
 
 5. **Finalize references**
@@ -94,6 +95,7 @@ If the user explicitly requests the bundled base template or supplies a template
 - Read `references/quality-gates.md` before delivering Markdown or DOCX.
 - Read `references/docx-crossrefs.md` before modifying numbered references, Word fields, superscript citations, or bibliography order.
 - Read `references/template-policy.md` before using, anonymizing, or publishing bundled templates.
+- Read `references/numbering-style.md` before drafting or revising body text that uses non-heading numbered points.
 
 ## Bundled Scripts
 
