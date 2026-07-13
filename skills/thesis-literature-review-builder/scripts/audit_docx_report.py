@@ -12,7 +12,7 @@ from lxml import etree
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 W = NS["w"]
 REFERENCE_INDENT_MIN_TWIPS = 300
-REFERENCE_INDENT_MAX_TWIPS = 720
+REFERENCE_INDENT_MAX_TWIPS = 540
 TITLE_MIN_HALF_POINTS = 32
 SAMPLE_PATTERNS = (
     "示例图片",
@@ -36,20 +36,74 @@ def para_text(p: etree._Element) -> str:
     return "".join(t.text or "" for t in p.xpath(".//w:t", namespaces=NS))
 
 
-def para_max_half_points(p: etree._Element) -> int | None:
+def rpr_half_points(rpr: etree._Element | None) -> int | None:
+    if rpr is None:
+        return None
     values = []
-    for sz in p.findall(".//w:rPr/w:sz", NS):
-        val = sz.get(qn("val"))
+    for tag in ("sz", "szCs"):
+        node = rpr.find(f"w:{tag}", NS)
+        val = node.get(qn("val")) if node is not None else None
         if val and val.isdigit():
             values.append(int(val))
     return max(values) if values else None
+
+
+def style_context(styles_xml: bytes | None) -> dict:
+    if not styles_xml:
+        return {"styles": {}, "defaults": {}, "doc_default": None}
+    root = etree.fromstring(styles_xml)
+    styles = {}
+    defaults = {}
+    for style in root.findall("w:style", NS):
+        style_id = style.get(qn("styleId"))
+        style_type = style.get(qn("type"))
+        if not style_id:
+            continue
+        based_on = style.find("w:basedOn", NS)
+        styles[style_id] = {
+            "type": style_type,
+            "based_on": based_on.get(qn("val")) if based_on is not None else None,
+            "size": rpr_half_points(style.find("w:rPr", NS)),
+        }
+        if style.get(qn("default")) in ("1", "true") and style_type:
+            defaults[style_type] = style_id
+    default_rpr = root.find("w:docDefaults/w:rPrDefault/w:rPr", NS)
+    return {"styles": styles, "defaults": defaults, "doc_default": rpr_half_points(default_rpr)}
+
+
+def resolved_style_size(context: dict, style_id: str | None) -> int | None:
+    seen = set()
+    while style_id and style_id not in seen:
+        seen.add(style_id)
+        style = context["styles"].get(style_id)
+        if not style:
+            return None
+        if style["size"] is not None:
+            return style["size"]
+        style_id = style["based_on"]
+    return None
+
+
+def effective_run_half_points(r: etree._Element, p: etree._Element, context: dict) -> int | None:
+    rpr = r.find("w:rPr", NS)
+    direct = rpr_half_points(rpr)
+    if direct is not None:
+        return direct
+    rstyle = rpr.find("w:rStyle", NS) if rpr is not None else None
+    size = resolved_style_size(context, rstyle.get(qn("val")) if rstyle is not None else None)
+    if size is not None:
+        return size
+    pstyle = p.find("w:pPr/w:pStyle", NS)
+    paragraph_style_id = pstyle.get(qn("val")) if pstyle is not None else context["defaults"].get("paragraph")
+    size = resolved_style_size(context, paragraph_style_id)
+    return size if size is not None else context["doc_default"]
 
 
 def instr_texts(root: etree._Element) -> list[str]:
     return ["".join(t.text or "" for t in p.findall(".//w:instrText", NS)) for p in root.findall(".//w:p", NS)]
 
 
-def title_report(paras: list[etree._Element], title: str | None) -> dict:
+def title_report(paras: list[etree._Element], title: str | None, styles: dict) -> dict:
     if not title:
         return {
             "title_checked": False,
@@ -61,13 +115,18 @@ def title_report(paras: list[etree._Element], title: str | None) -> dict:
     for idx, p in enumerate(paras[:20], 1):
         text = re.sub(r"\s+", "", para_text(p))
         if normalized and normalized in text:
-            max_size = para_max_half_points(p)
+            text_runs = [r for r in p.findall(".//w:r", NS) if para_text(r).strip()]
+            sizes = [effective_run_half_points(r, p, styles) for r in text_runs]
+            known_sizes = [size for size in sizes if size is not None]
+            unresolved = len(sizes) - len(known_sizes)
             return {
                 "title_checked": True,
                 "title_on_cover": True,
                 "title_paragraph_index": idx,
-                "title_max_half_points": max_size,
-                "title_large_enough": max_size is not None and max_size >= TITLE_MIN_HALF_POINTS,
+                "title_max_half_points": max(known_sizes) if known_sizes else None,
+                "title_min_half_points": min(known_sizes) if known_sizes else None,
+                "title_unresolved_run_count": unresolved,
+                "title_large_enough": bool(known_sizes) and unresolved == 0 and min(known_sizes) >= TITLE_MIN_HALF_POINTS,
             }
     return {
         "title_checked": True,
@@ -78,11 +137,12 @@ def title_report(paras: list[etree._Element], title: str | None) -> dict:
     }
 
 
-def field_report(root: etree._Element) -> tuple[int, int, int, set[int]]:
+def field_report(root: etree._Element) -> tuple[int, int, int, set[int], set[str]]:
     ref_fields = 0
     superscript = 0
     non_superscript = 0
     cited_numbers: set[int] = set()
+    targets: set[str] = set()
     for p in root.findall(".//w:p", NS):
         children = list(p)
         i = 0
@@ -109,6 +169,7 @@ def field_report(root: etree._Element) -> tuple[int, int, int, set[int]]:
             if sep is not None and end is not None and m:
                 ref_fields += 1
                 cited_numbers.add(int(m.group(1)))
+                targets.add(f"Ref_{m.group(1)}")
                 result_runs = children[sep + 1 : end]
                 is_sup = any(
                     (r.find("w:rPr/w:vertAlign", NS) is not None)
@@ -118,7 +179,7 @@ def field_report(root: etree._Element) -> tuple[int, int, int, set[int]]:
                 superscript += int(is_sup)
                 non_superscript += int(not is_sup)
             i = (end + 1) if end is not None else i + 1
-    return ref_fields, superscript, non_superscript, cited_numbers
+    return ref_fields, superscript, non_superscript, cited_numbers, targets
 
 
 def text_without_ref_fields(p: etree._Element) -> str:
@@ -211,6 +272,7 @@ def reference_indent_issues(ref_paras: list[etree._Element], numbering: dict[str
 def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
     with zipfile.ZipFile(path) as zf:
         root = etree.fromstring(zf.read("word/document.xml"))
+        styles = style_context(zf.read("word/styles.xml") if "word/styles.xml" in zf.namelist() else None)
         numbering = numbering_indent_map(zf.read("word/numbering.xml") if "word/numbering.xml" in zf.namelist() else None)
         todo_parts = []
         for name in zf.namelist():
@@ -236,7 +298,8 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
         for b in root.findall(".//w:bookmarkStart", NS)
         if (b.get(qn("name")) or "").startswith("Ref_")
     ]
-    ref_fields, sup, non_sup, ref_field_numbers = field_report(root)
+    bookmark_set = set(bookmarks)
+    ref_fields, sup, non_sup, ref_field_numbers, ref_field_targets = field_report(root)
     plain_citations = plain_citation_numbers(paras[: heading_idx if heading_idx is not None else len(paras)])
     cited_numbers = ref_field_numbers | plain_citations
     reference_numbers = set(range(1, len(refs) + 1))
@@ -249,7 +312,10 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
         for pat in SAMPLE_PATTERNS
         if pat in text
     ][:20]
-    title_info = title_report(paras, title)
+    title_info = title_report(paras, title, styles)
+    expected_bookmarks = {f"Ref_{n:03d}" for n in reference_numbers}
+    missing_reference_bookmarks = sorted(expected_bookmarks - bookmark_set)
+    missing_field_bookmarks = sorted(ref_field_targets - bookmark_set)
 
     report = {
         "path": str(path),
@@ -261,12 +327,15 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
         "sample_content_hits": sample_hits,
         "reference_heading_found": heading_idx is not None,
         "reference_count": len(refs),
-        "ref_bookmark_count": len(bookmarks),
+        "ref_bookmark_count": len(bookmark_set),
+        "missing_reference_bookmarks": missing_reference_bookmarks,
+        "missing_field_bookmarks": missing_field_bookmarks,
         "ref_field_count": ref_fields,
         "superscript_ref_fields": sup,
         "non_superscript_ref_fields": non_sup,
         "plain_citation_count": len(plain_citations),
         "plain_citation_numbers": sorted(plain_citations),
+        "in_text_citation_missing": bool(refs) and ref_fields == 0 and not plain_citations,
         "uncited_reference_numbers": sorted(reference_numbers - cited_numbers),
         "missing_reference_numbers": sorted(n for n in cited_numbers if n not in reference_numbers),
         "double_bracket_paragraphs": sum("[[" in t or "]]" in t for t in texts),
@@ -302,6 +371,9 @@ def strict_failures(report: dict) -> list[str]:
         "uncited_reference_numbers",
         "missing_reference_numbers",
         "reference_indent_issue_count",
+        "missing_reference_bookmarks",
+        "missing_field_bookmarks",
+        "in_text_citation_missing",
     ):
         if report[key]:
             failures.append(key)
@@ -318,12 +390,15 @@ def main() -> None:
     args = parser.parse_args()
 
     report = audit(args.docx, args.ref_heading, args.title)
+    failures = strict_failures(report)
+    report["strict_failure_count"] = len(failures)
+    report["strict_failures"] = failures
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         for key, value in report.items():
             print(f"{key}: {value}")
-    if args.strict and strict_failures(report):
+    if args.strict and failures:
         raise SystemExit(1)
 
 

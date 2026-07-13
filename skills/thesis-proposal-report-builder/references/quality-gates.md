@@ -38,3 +38,11 @@ python scripts/audit_docx_report.py <report.docx> --title "<论文题目>" --str
 ```
 
 If the audit reports title, TOC, field error, sample-content, plain citation, uncited reference, non-superscript field, or reference-indent issues, revise the DOCX and rerun the audit.
+
+Do not treat exit code alone as sufficient. Before delivery, confirm all applicable metrics:
+
+- `title_on_cover=True`, `title_large_enough=True`, and `title_unresolved_run_count=0` when `--title` is supplied;
+- `ref_field_count > 0` when references exist, `plain_citation_count=0`, and `superscript_ref_fields == ref_field_count`;
+- `missing_reference_bookmarks=[]` and `missing_field_bookmarks=[]`;
+- `uncited_reference_numbers=[]` and `missing_reference_numbers=[]`;
+- `reference_indent_issue_count=0`, `duplicate_reference_count=0`, and `field_error_count=0`.

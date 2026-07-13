@@ -33,6 +33,7 @@ When generating DOCX:
 
 - use existing heading styles instead of manual font sizes where possible;
 - write the thesis title into the template's cover title position. Preserve the large cover-title paragraph or content-control style; do not create a normal body heading as the title substitute;
+- when replacing cover-title runs, clone the original non-empty title run's `w:rPr`, including `w:sz`/`w:szCs`, onto the new run. Do not assume `w:pPr/w:rPr` cascades to text runs; it formats the paragraph mark and can make an XML-only size check look correct while the visible title falls back to the Normal style;
 - replace mapped content slots in place. Remove body sample content, sample pictures, sample captions, and example tables when they do not match the user's topic;
 - preserve section breaks, page setup, headers/footers, and TOC fields;
 - update the table of contents after headings and page breaks change. If Word or LibreOffice is unavailable, set fields to update on open and report that the TOC was not visually verified;

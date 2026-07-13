@@ -55,9 +55,15 @@ When adding references to an existing DOCX:
 
 Every numbered bibliography entry must be cited in the body. If a reference is useful background but not cited, either add a meaningful in-text citation where it supports a claim or remove it from the final numbered list.
 
+## Embedded Citation Conversion
+
+The bundled converter supports a single-number citation embedded in a simple text run, such as `GenProg[1]以来`: it splits the run into text, a superscript `REF` field, and trailing text while cloning the original run formatting. It deliberately rejects combined/range citations and citations inside complex rich-text runs. Do not describe embedded single-number citations as unsupported; inspect the converter error and handle only the rejected structure manually.
+
+When manually splitting a run, preserve the original `w:rPr` on both text fragments and use superscript `w:rPr` on every run in the `REF` field group. Never rebuild the whole paragraph from plain text, because that can discard hyperlinks, proofing state, language settings, or mixed formatting.
+
 ## Reference Paragraph Indent
 
-Use a compact hanging indent for the bibliography. Continuation lines should align near the text after `[n]`. A practical default is `left=420` twips and `hanging=420` twips, with the tab stop at the same position. Do not leave a large inherited paragraph indent from the template.
+Use a compact hanging indent for the bibliography. Continuation lines should align near the text after `[n]`. A practical default is `left=420` twips and `hanging=420` twips, with the tab stop at the same position. Treat values above `540` twips as suspicious and inspect them visually. Do not leave a large inherited paragraph indent from the template.
 
 ## Bibliography Formatting Pitfalls
 
