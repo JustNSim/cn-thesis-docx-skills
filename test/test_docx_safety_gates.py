@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 AUDIT_PATH = ROOT / "skills" / "thesis-literature-review-builder" / "scripts" / "audit_docx_report.py"
 CONVERTER_PATH = ROOT / "skills" / "thesis-literature-review-builder" / "scripts" / "convert_refs_to_crossrefs.py"
 PRIVACY_PATH = ROOT / "skills" / "thesis-literature-review-builder" / "scripts" / "privacy_scrub_template.py"
+HEADING_COMPARE_PATH = ROOT / "skills" / "thesis-literature-review-builder" / "scripts" / "compare_md_docx_headings.py"
+CLEAR_UPDATE_PATH = ROOT / "skills" / "thesis-literature-review-builder" / "scripts" / "clear_update_fields_on_open.py"
 
 
 def load_module(name: str, path: Path):
@@ -23,6 +25,8 @@ def load_module(name: str, path: Path):
 audit = load_module("audit_docx_report", AUDIT_PATH)
 converter = load_module("convert_refs_to_crossrefs", CONVERTER_PATH)
 privacy = load_module("privacy_scrub_template", PRIVACY_PATH)
+heading_compare = load_module("compare_md_docx_headings", HEADING_COMPARE_PATH)
+clear_update = load_module("clear_update_fields_on_open", CLEAR_UPDATE_PATH)
 W = audit.W
 
 
@@ -88,6 +92,36 @@ def test_privacy_scrub_preserves_ignorable_namespace_prefixes():
     out = privacy.scrub_word_xml(data, accept_revisions=True, remove_hidden_text=True, removed_ids=set())
     assert b"mc:Ignorable=\"w14\"" in out
     assert b"xmlns:w14=" in out
+
+
+def test_placeholder_text_is_sample_content():
+    paragraph = xml('<w:p xmlns:w="{w}"><w:r><w:t>研究目标与研究内容、关键科学问题</w:t></w:r></w:p>')
+    text = audit.para_text(paragraph)
+    hits = [
+        {"pattern": pat}
+        for pat in audit.SAMPLE_PATTERNS + audit.PLACEHOLDER_PATTERNS
+        if pat in text
+    ]
+    assert hits
+
+
+def test_update_fields_on_open_is_detected():
+    settings = f'<w:settings xmlns:w="{W}"><w:updateFields w:val="true"/></w:settings>'.encode()
+    assert audit.update_fields_on_open(settings) is True
+    settings = f'<w:settings xmlns:w="{W}"><w:updateFields w:val="false"/></w:settings>'.encode()
+    assert audit.update_fields_on_open(settings) is False
+
+
+def test_clear_update_fields_removes_open_prompt_setting():
+    settings = f'<w:settings xmlns:w="{W}"><w:updateFields w:val="true"/></w:settings>'.encode()
+    cleaned, changed = clear_update.clear_settings(settings)
+    assert changed is True
+    assert b"updateFields" not in cleaned
+
+
+def test_heading_normalization_ignores_number_prefixes():
+    assert heading_compare.normalize_heading("2.1 国内外研究现状") == "国内外研究现状"
+    assert heading_compare.normalize_heading("第一章 绪论") == "绪论"
 
 
 def test_embedded_single_citation_is_converted():

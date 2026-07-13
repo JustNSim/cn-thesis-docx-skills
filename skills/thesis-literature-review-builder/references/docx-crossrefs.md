@@ -83,6 +83,7 @@ Prefer a Word automation update when available:
 
 - update all fields in the main story, headers, footers, footnotes, textboxes, and TOC;
 - save after field update;
+- remove or disable `w:updateFields`/update-on-open after a successful update so Word does not ask the user to update fields again on open;
 - reopen or audit the DOCX to ensure fields persisted.
 
 If Word automation is unavailable, update fields using the best available DOCX tooling and tell the user what could not be verified.

@@ -25,6 +25,7 @@ Adjust the structure to the user's institutional template when one is supplied.
 ## DOCX Focus
 
 - Preserve the user's template hierarchy and heading styles.
+- After DOCX conversion, compare heading names and levels against the Markdown source with `compare_md_docx_headings.py`.
 - Keep Chinese academic style formal and concise.
 - Use clear figure/table captions when visuals are inserted.
 - Use Word cross-references for citations when the bibliography may be updated later.

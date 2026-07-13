@@ -11,7 +11,8 @@
 - 按用户提供或内置 DOCX 模板排版
 - 整理参考文献编号、正文上标引用和 Word 交叉引用
 - 检查 DOCX 中的参考文献、引用编号和格式问题
-- 在 Markdown 和 DOCX 阶段检查学位层次、封面标题、目录、引用覆盖、参考文献缩进和常见 AI 化表达
+- 在 Markdown 和 DOCX 阶段检查学位层次、封面标题、目录、引用覆盖、参考文献缩进、模板残留占位语和常见 AI 化表达
+- 对照 Markdown 与 DOCX 的标题名称和层级，减少模板转换后的标题漂移
 - 统一正文非标题序号：`（一）` 作为总领点，`（1）` 作为下一级条目，`a.` 作为更低层级短项
 
 ## 包含哪些 Skills
@@ -71,8 +72,11 @@ node bin/install.js update --skill proposal --scope project --project-dir ~/my-t
 进入对应 skill 的目录后执行。所有清理操作都应写到新文件，确认通过后再替换源文件。
 
 ```bash
-# 草稿：检查学位层次、引用覆盖和常见 AI 化表达
+# 草稿：检查学位层次、引用覆盖、模板占位残留和常见 AI 化表达
 python scripts/audit_markdown_report.py draft.md --degree 博士 --strict
+
+# 开题报告可额外检查“研究目标-研究内容-研究方案”是否一一对应
+python scripts/audit_markdown_report.py proposal.md --degree 博士 --expect-research-items 3 --strict
 
 # 公开模板：清除元数据、修订、隐藏文字、外部关系和 OLE/ActiveX，再作严格审计
 python scripts/privacy_scrub_template.py input.docx output.docx
@@ -81,11 +85,17 @@ python scripts/inspect_docx_template.py output.docx --strict
 # 最终报告：检查 TODO、重复参考文献、双括号和参考文献段落完整性
 python scripts/audit_docx_report.py report.docx --title "论文题目" --strict
 
+# 对照 Markdown 与 DOCX 的标题名称和层级
+python scripts/compare_md_docx_headings.py draft.md report.docx --strict
+
+# 字段已在 Word/LibreOffice 更新并保存后，清除打开时更新域提示
+python scripts/clear_update_fields_on_open.py report.docx report-final.docx
+
 # 转换纯文本 run 内的 [n]、[1,2]、[1-3] 等引用；合并/范围引用会展开为多个相邻上标 REF 域
 python scripts/convert_refs_to_crossrefs.py input.docx output.docx
 ```
 
-脚本只负责 OOXML 结构、封面标题、目录字段、图表目录重复条目和引文检查。最终交付前仍须在 Word 或 LibreOffice 更新字段和目录，并渲染/逐页检查页码、表格、图片、字体及文字溢出；若环境无法完成该步骤，应明确标记为“未完成目录/视觉验收”。
+脚本只负责 OOXML 结构、封面标题、目录字段、图表目录重复条目、标题对照和引文检查。最终交付前仍须在 Word 或 LibreOffice 更新字段和目录，并渲染/逐页检查页码、表格、图片、字体及文字溢出；若环境无法完成该步骤，应明确标记为“未完成目录/视觉验收”。如果已完成字段更新，应保存后关闭 update-on-open 设置，避免用户打开时再次弹出“更新域”提示。
 
 ## 怎么使用
 

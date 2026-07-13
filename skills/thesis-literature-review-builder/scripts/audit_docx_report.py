@@ -26,6 +26,14 @@ SAMPLE_PATTERNS = (
     "模板示例",
     "样例内容",
 )
+PLACEHOLDER_PATTERNS = (
+    "研究目标与研究内容、关键科学问题",
+    "（下面分别介绍每个研究内容）",
+    "请在此处",
+    "模板示例",
+    "样例内容",
+    "待核验",
+)
 CAPTION_LIST_LABELS = ("图", "表")
 
 
@@ -130,6 +138,17 @@ def caption_list_duplicate_issues(paras: list[etree._Element]) -> list[dict[str,
                 )
                 break
     return issues[:20]
+
+
+def update_fields_on_open(settings_xml: bytes | None) -> bool:
+    if not settings_xml:
+        return False
+    root = etree.fromstring(settings_xml)
+    node = root.find("w:updateFields", NS)
+    if node is None:
+        return False
+    val = node.get(qn("val"))
+    return val is None or val.lower() not in {"0", "false", "off"}
 
 
 def title_report(paras: list[etree._Element], title: str | None, styles: dict) -> dict:
@@ -303,6 +322,7 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
         root = etree.fromstring(zf.read("word/document.xml"))
         styles = style_context(zf.read("word/styles.xml") if "word/styles.xml" in zf.namelist() else None)
         numbering = numbering_indent_map(zf.read("word/numbering.xml") if "word/numbering.xml" in zf.namelist() else None)
+        update_on_open = update_fields_on_open(zf.read("word/settings.xml") if "word/settings.xml" in zf.namelist() else None)
         todo_parts = []
         for name in zf.namelist():
             if name.startswith("word/") and name.endswith(".xml"):
@@ -339,7 +359,7 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
     sample_hits = [
         {"paragraph_index": idx + 1, "pattern": pat, "text": text[:160]}
         for idx, text in enumerate(texts)
-        for pat in SAMPLE_PATTERNS
+        for pat in SAMPLE_PATTERNS + PLACEHOLDER_PATTERNS
         if pat in text
     ][:20]
     title_info = title_report(paras, title, styles)
@@ -352,6 +372,7 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
         "paragraphs": len(paras),
         **title_info,
         "toc_field_count": sum(1 for instr in field_instr if re.search(r"\bTOC\b", instr)),
+        "update_fields_on_open": update_on_open,
         "field_error_count": sum("Error!" in text or "错误!" in text or "找不到" in text for text in texts),
         "caption_list_duplicate_entry_count": len(caption_list_issues),
         "caption_list_duplicate_entries": caption_list_issues,
@@ -393,6 +414,7 @@ def strict_failures(report: dict) -> list[str]:
         failures.append("toc_field_count")
     for key in (
         "field_error_count",
+        "update_fields_on_open",
         "caption_list_duplicate_entry_count",
         "sample_content_hit_count",
         "double_bracket_paragraphs",
