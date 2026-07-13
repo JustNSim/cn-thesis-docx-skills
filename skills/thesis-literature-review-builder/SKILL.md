@@ -79,7 +79,7 @@ If the user explicitly requests the bundled base template or supplies a template
    - Keep reference-list hanging indent compact so continuation lines align near the text after `[n]`.
    - Update all fields and the TOC in Word or LibreOffice after headings and page breaks change.
    - Run `inspect_docx_template.py <output> --strict` and `audit_docx_report.py <output> --title "<论文题目>" --strict` before delivery.
-   - Read the audit metrics, not only its exit code. Require a valid large cover title, at least one superscript `REF` field when references exist, no plain citations, complete bibliography/bookmark and field/bookmark mappings, no uncited or missing references, and zero indent, duplicate-reference, or field-error findings. See `references/quality-gates.md` for the exact checklist.
+   - Read the audit metrics, not only its exit code. Require a valid large cover title, at least one superscript `REF` field when references exist, no plain citations, complete bibliography/bookmark and field/bookmark mappings, no uncited or missing references, no duplicated figure/table-list entries, and zero indent, duplicate-reference, or field-error findings. See `references/quality-gates.md` for the exact checklist.
    - Render and inspect pages. If field update or visual inspection is unavailable, report that limitation instead of claiming layout validation.
 
 ## Figure And Table Guidance

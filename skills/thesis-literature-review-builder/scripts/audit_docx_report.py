@@ -26,6 +26,7 @@ SAMPLE_PATTERNS = (
     "模板示例",
     "样例内容",
 )
+CAPTION_LIST_LABELS = ("图", "表")
 
 
 def qn(tag: str) -> str:
@@ -101,6 +102,34 @@ def effective_run_half_points(r: etree._Element, p: etree._Element, context: dic
 
 def instr_texts(root: etree._Element) -> list[str]:
     return ["".join(t.text or "" for t in p.findall(".//w:instrText", NS)) for p in root.findall(".//w:p", NS)]
+
+
+def paragraph_instr_text(p: etree._Element) -> str:
+    return "".join(t.text or "" for t in p.findall(".//w:instrText", NS))
+
+
+def caption_list_duplicate_issues(paras: list[etree._Element]) -> list[dict[str, int | str]]:
+    issues = []
+    for idx, p in enumerate(paras, 1):
+        instr = paragraph_instr_text(p)
+        text = para_text(p)
+        if not re.search(r'\bTOC\b', instr):
+            continue
+        if not re.search(r'\\c\s+"[图表]"', instr):
+            continue
+        for label in CAPTION_LIST_LABELS:
+            hits = re.findall(rf"{label}\s*\d+", text)
+            if len(hits) > 1:
+                issues.append(
+                    {
+                        "paragraph_index": idx,
+                        "label": label,
+                        "entry_marker_count": len(hits),
+                        "text": text[:180],
+                    }
+                )
+                break
+    return issues[:20]
 
 
 def title_report(paras: list[etree._Element], title: str | None, styles: dict) -> dict:
@@ -306,6 +335,7 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
     norm_refs = [re.sub(r"^\[\d+\]\s*", "", r).strip().lower() for r in refs]
     duplicates = sorted({r for r in norm_refs if norm_refs.count(r) > 1 and r})
     indent_issues = reference_indent_issues(ref_paras, numbering)
+    caption_list_issues = caption_list_duplicate_issues(paras)
     sample_hits = [
         {"paragraph_index": idx + 1, "pattern": pat, "text": text[:160]}
         for idx, text in enumerate(texts)
@@ -323,6 +353,8 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
         **title_info,
         "toc_field_count": sum(1 for instr in field_instr if re.search(r"\bTOC\b", instr)),
         "field_error_count": sum("Error!" in text or "错误!" in text or "找不到" in text for text in texts),
+        "caption_list_duplicate_entry_count": len(caption_list_issues),
+        "caption_list_duplicate_entries": caption_list_issues,
         "sample_content_hit_count": len(sample_hits),
         "sample_content_hits": sample_hits,
         "reference_heading_found": heading_idx is not None,
@@ -361,6 +393,7 @@ def strict_failures(report: dict) -> list[str]:
         failures.append("toc_field_count")
     for key in (
         "field_error_count",
+        "caption_list_duplicate_entry_count",
         "sample_content_hit_count",
         "double_bracket_paragraphs",
         "duplicate_reference_count",

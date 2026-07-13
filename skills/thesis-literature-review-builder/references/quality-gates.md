@@ -31,13 +31,14 @@ After creating DOCX:
 4. Ensure in-text citations display as superscript.
 5. Ensure reference paragraphs use a compact hanging indent. The second and later lines should align near the reference text start after `[n]`, not far to the right.
 6. Update all fields and the table of contents in Word or LibreOffice after headings and page breaks change.
-7. Run:
+7. Inspect the table of figures/tables. Remove stale template list entries before updating fields; a line such as `图 1 ... 页码 图 1 ...` means an old field result or placeholder text was left in the same paragraph.
+8. Run:
 
 ```bash
 python scripts/audit_docx_report.py <report.docx> --title "<论文题目>" --strict
 ```
 
-If the audit reports title, TOC, field error, sample-content, plain citation, uncited reference, non-superscript field, or reference-indent issues, revise the DOCX and rerun the audit.
+If the audit reports title, TOC, caption-list duplicate, field error, sample-content, plain citation, uncited reference, non-superscript field, or reference-indent issues, revise the DOCX and rerun the audit.
 
 Do not treat exit code alone as sufficient. Before delivery, confirm all applicable metrics:
 
@@ -45,4 +46,4 @@ Do not treat exit code alone as sufficient. Before delivery, confirm all applica
 - `ref_field_count > 0` when references exist, `plain_citation_count=0`, and `superscript_ref_fields == ref_field_count`;
 - `missing_reference_bookmarks=[]` and `missing_field_bookmarks=[]`;
 - `uncited_reference_numbers=[]` and `missing_reference_numbers=[]`;
-- `reference_indent_issue_count=0`, `duplicate_reference_count=0`, and `field_error_count=0`.
+- `reference_indent_issue_count=0`, `duplicate_reference_count=0`, `caption_list_duplicate_entry_count=0`, and `field_error_count=0`.

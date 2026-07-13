@@ -61,6 +61,21 @@ def test_reference_indent_above_540_is_rejected():
     assert audit.reference_indent_issues([paragraph], {})
 
 
+def test_duplicate_figure_list_entry_is_rejected():
+    paragraph = xml(
+        '<w:p xmlns:w="{w}">'
+        '<w:r><w:fldChar w:fldCharType="begin"/></w:r>'
+        '<w:r><w:instrText> TOC \\h \\z \\c "图" </w:instrText></w:r>'
+        '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
+        '<w:r><w:t>图 1 研究内容关系示意图......4 图 1 研究内容关系示意图</w:t></w:r>'
+        '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
+        '</w:p>'
+    )
+    issues = audit.caption_list_duplicate_issues([paragraph])
+    assert issues
+    assert issues[0]["label"] == "图"
+
+
 def test_embedded_single_citation_is_converted():
     paragraph = xml('<w:p xmlns:w="{w}"><w:r><w:t>GenProg[1]以来</w:t></w:r></w:p>')
     changed, unsupported = converter.rebuild_paragraph_with_fields(

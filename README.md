@@ -84,7 +84,7 @@ python scripts/audit_docx_report.py report.docx --title "论文题目" --strict
 python scripts/convert_refs_to_crossrefs.py input.docx output.docx
 ```
 
-脚本只负责 OOXML 结构、封面标题、目录字段和引文检查。最终交付前仍须在 Word 或 LibreOffice 更新字段和目录，并渲染/逐页检查页码、表格、图片、字体及文字溢出；若环境无法完成该步骤，应明确标记为“未完成目录/视觉验收”。
+脚本只负责 OOXML 结构、封面标题、目录字段、图表目录重复条目和引文检查。最终交付前仍须在 Word 或 LibreOffice 更新字段和目录，并渲染/逐页检查页码、表格、图片、字体及文字溢出；若环境无法完成该步骤，应明确标记为“未完成目录/视觉验收”。
 
 ## 怎么使用
 
