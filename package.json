@@ -1,6 +1,6 @@
 {
   "name": "cn-thesis-docx-skills",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Agent skills for Chinese thesis literature review and proposal DOCX generation.",
   "type": "commonjs",
   "bin": {

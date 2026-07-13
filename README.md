@@ -80,7 +80,7 @@ python scripts/inspect_docx_template.py output.docx --strict
 # 最终报告：检查 TODO、重复参考文献、双括号和参考文献段落完整性
 python scripts/audit_docx_report.py report.docx --title "论文题目" --strict
 
-# 仅转换“纯文本 run 内的独立 [n]”引用；组合/范围/富文本引用会明确失败，避免损坏格式
+# 转换纯文本 run 内的 [n]、[1,2]、[1-3] 等引用；合并/范围引用会展开为多个相邻上标 REF 域
 python scripts/convert_refs_to_crossrefs.py input.docx output.docx
 ```
 

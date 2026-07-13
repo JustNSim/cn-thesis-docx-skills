@@ -104,7 +104,7 @@ If the user explicitly requests the bundled base template or supplies a template
 - `scripts/audit_docx_report.py`: inspect bibliography paragraphs, citation fields, superscript state, duplicate brackets, and bookmarks.
 - `scripts/convert_refs_to_crossrefs.py`: convert plain numeric citations and bibliography entries into Word REF fields and automatic `[n]` reference numbering.
 
-The converter accepts single-number `[n]` citations anywhere inside a simple text run, including forms such as `GenProg[1]以来`. It intentionally rejects combined/range citations and citations in complex rich-text structures so that it never silently loses formatting.
+The converter accepts numeric citations anywhere inside a simple text run, including forms such as `GenProg[1]以来`, `[1,2]`, `[1-3]`, and `[1][2][3]`. Combined and range citations are expanded into adjacent superscript `REF` fields, e.g. `[1][2][3]`. It intentionally rejects citations in complex rich-text structures, missing-reference citations, and oversized ranges so that it never silently loses formatting.
 
 Install Python script dependencies when needed:
 

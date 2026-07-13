@@ -57,7 +57,7 @@ Every numbered bibliography entry must be cited in the body. If a reference is u
 
 ## Embedded Citation Conversion
 
-The bundled converter supports a single-number citation embedded in a simple text run, such as `GenProg[1]以来`: it splits the run into text, a superscript `REF` field, and trailing text while cloning the original run formatting. It deliberately rejects combined/range citations and citations inside complex rich-text runs. Do not describe embedded single-number citations as unsupported; inspect the converter error and handle only the rejected structure manually.
+The bundled converter supports numeric citations embedded in a simple text run, such as `GenProg[1]以来`, `相关研究[1,2]表明`, and `已有方法[1-3]`: it splits the run into text, one or more adjacent superscript `REF` fields, and trailing text while cloning the original run formatting. Combined and range citations are expanded into multiple independent fields, so `[1,2]` displays as `[1][2]` and `[1-3]` displays as `[1][2][3]` after conversion. It deliberately rejects citations inside complex rich-text runs, missing-reference citations, and oversized ranges. Do not describe embedded simple-run citations as unsupported; inspect the converter error and handle only the rejected structure manually.
 
 When manually splitting a run, preserve the original `w:rPr` on both text fragments and use superscript `w:rPr` on every run in the `REF` field group. Never rebuild the whole paragraph from plain text, because that can discard hyperlinks, proofing state, language settings, or mixed formatting.
 

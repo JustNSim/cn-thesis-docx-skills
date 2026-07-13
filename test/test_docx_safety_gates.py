@@ -73,6 +73,64 @@ def test_embedded_single_citation_is_converted():
     assert "REF Ref_001" in "".join(paragraph.xpath(".//w:instrText/text()", namespaces=converter.NS))
 
 
+def test_combined_citation_expands_to_adjacent_ref_fields():
+    paragraph = xml('<w:p xmlns:w="{w}"><w:r><w:t>相关研究[1,2]表明</w:t></w:r></w:p>')
+    changed, unsupported = converter.rebuild_paragraph_with_fields(
+        paragraph,
+        converter.re.compile(r"\[(?:\d+(?:\s*[-–—]\s*\d+)?)(?:\s*[,;，、]\s*\d+(?:\s*[-–—]\s*\d+)?)*\]"),
+        {1: 1, 2: 2},
+    )
+    refs = "".join(paragraph.xpath(".//w:instrText/text()", namespaces=converter.NS))
+    assert changed is True
+    assert unsupported is False
+    assert "相关研究" in converter.para_text(paragraph)
+    assert "表明" in converter.para_text(paragraph)
+    assert refs.count("REF Ref_001") == 1
+    assert refs.count("REF Ref_002") == 1
+
+
+def test_range_citation_expands_to_adjacent_ref_fields():
+    paragraph = xml('<w:p xmlns:w="{w}"><w:r><w:t>已有方法[1-3]仍存在不足</w:t></w:r></w:p>')
+    changed, unsupported = converter.rebuild_paragraph_with_fields(
+        paragraph,
+        converter.re.compile(r"\[(?:\d+(?:\s*[-–—]\s*\d+)?)(?:\s*[,;，、]\s*\d+(?:\s*[-–—]\s*\d+)?)*\]"),
+        {1: 1, 2: 2, 3: 3},
+    )
+    refs = "".join(paragraph.xpath(".//w:instrText/text()", namespaces=converter.NS))
+    assert changed is True
+    assert unsupported is False
+    assert refs.count("REF Ref_001") == 1
+    assert refs.count("REF Ref_002") == 1
+    assert refs.count("REF Ref_003") == 1
+
+
+def test_adjacent_citations_are_all_converted():
+    paragraph = xml('<w:p xmlns:w="{w}"><w:r><w:t>已有方法[1][2][3]仍存在不足</w:t></w:r></w:p>')
+    changed, unsupported = converter.rebuild_paragraph_with_fields(
+        paragraph,
+        converter.re.compile(r"\[(?:\d+(?:\s*[-–—]\s*\d+)?)(?:\s*[,;，、]\s*\d+(?:\s*[-–—]\s*\d+)?)*\]"),
+        {1: 1, 2: 2, 3: 3},
+    )
+    refs = "".join(paragraph.xpath(".//w:instrText/text()", namespaces=converter.NS))
+    assert changed is True
+    assert unsupported is False
+    assert refs.count("REF Ref_001") == 1
+    assert refs.count("REF Ref_002") == 1
+    assert refs.count("REF Ref_003") == 1
+
+
+def test_combined_citation_with_missing_reference_is_rejected():
+    paragraph = xml('<w:p xmlns:w="{w}"><w:r><w:t>相关研究[1,4]表明</w:t></w:r></w:p>')
+    changed, unsupported = converter.rebuild_paragraph_with_fields(
+        paragraph,
+        converter.re.compile(r"\[(?:\d+(?:\s*[-–—]\s*\d+)?)(?:\s*[,;，、]\s*\d+(?:\s*[-–—]\s*\d+)?)*\]"),
+        {1: 1},
+    )
+    assert changed is False
+    assert unsupported is True
+    assert not paragraph.xpath(".//w:instrText/text()", namespaces=converter.NS)
+
+
 if __name__ == "__main__":
     tests = [value for name, value in globals().items() if name.startswith("test_") and callable(value)]
     for test in tests:

@@ -18,6 +18,8 @@ NS = {
 W = NS["w"]
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
 REFERENCE_INDENT_TWIPS = "420"
+MAX_CITATION_RANGE = 100
+MAX_CITATION_NUMBERS = 100
 
 
 def qn(tag: str) -> str:
@@ -91,14 +93,22 @@ def field_runs(bookmark: str, display: str, rpr: etree._Element | None) -> list[
 
 def citation_numbers(citation: str) -> list[int]:
     nums: list[int] = []
-    for a, b in re.findall(r"(\d+)(?:\s*-\s*(\d+))?", citation):
+    for a, b in re.findall(r"(\d+)(?:\s*[-–—]\s*(\d+))?", citation):
         start = int(a)
         end = int(b) if b else start
-        if end >= start and end - start <= 50:
+        if end >= start and end - start <= MAX_CITATION_RANGE:
             nums.extend(range(start, end + 1))
         else:
-            nums.append(start)
-    return nums
+            return []
+    unique_nums: list[int] = []
+    seen: set[int] = set()
+    for num in nums:
+        if num not in seen:
+            seen.add(num)
+            unique_nums.append(num)
+    if len(unique_nums) > MAX_CITATION_NUMBERS:
+        return []
+    return unique_nums
 
 
 def rebuild_paragraph_with_fields(
@@ -106,10 +116,11 @@ def rebuild_paragraph_with_fields(
     citation_pat: re.Pattern,
     old_to_new: dict[int, int],
 ) -> tuple[bool, bool]:
-    """Convert only simple, single-number citations without rebuilding the paragraph.
+    """Convert simple citations without rebuilding the paragraph.
 
-    Returns (changed, unsupported_citation_found). Multi-number/range citations and
-    citations inside complex runs are rejected rather than silently losing formatting.
+    Returns (changed, unsupported_citation_found). Multi-number/range citations
+    are expanded to adjacent REF fields. Citations inside complex runs are
+    rejected rather than silently losing formatting.
     """
     total_citations = len(citation_pat.findall(para_text(p)))
     handled_citations = 0
@@ -130,12 +141,13 @@ def rebuild_paragraph_with_fields(
         position = 0
         for match in matches:
             numbers = citation_numbers(match.group(0))
-            if len(numbers) != 1 or numbers[0] not in old_to_new:
+            if not numbers or any(number not in old_to_new for number in numbers):
                 continue
             if match.start() > position:
                 replacement.append(text_run(text[position : match.start()], rpr))
-            new_no = old_to_new[numbers[0]]
-            replacement.extend(field_runs(f"Ref_{new_no:03d}", f"[{new_no}]", rpr))
+            for number in numbers:
+                new_no = old_to_new[number]
+                replacement.extend(field_runs(f"Ref_{new_no:03d}", f"[{new_no}]", rpr))
             position = match.end()
             handled_citations += 1
         if position == 0:
@@ -315,7 +327,7 @@ def convert(input_path: Path, output_path: Path, ref_heading: str, preserve_orde
 
     old_ref_text = {old: text for old, text, _ in ref_items}
     old_numbers = [old for old, _, _ in ref_items]
-    citation_pat = re.compile(r"\[(?:\d+(?:\s*-\s*\d+)?)(?:\s*[,;，、]\s*\d+(?:\s*-\s*\d+)?)*\]")
+    citation_pat = re.compile(r"\[(?:\d+(?:\s*[-–—]\s*\d+)?)(?:\s*[,;，、]\s*\d+(?:\s*[-–—]\s*\d+)?)*\]")
     first_order: list[int] = []
     seen: set[int] = set()
     for p in paras[:heading_idx]:
@@ -339,8 +351,8 @@ def convert(input_path: Path, output_path: Path, ref_heading: str, preserve_orde
     if unsupported:
         examples = "; ".join(repr(text) for text in unsupported[:3])
         raise RuntimeError(
-            "Only standalone [n] citations in simple text runs can be converted safely. "
-            f"Found unsupported combined, range, or rich-text citations: {examples}"
+            "Only citations in simple text runs with known reference numbers can be converted safely. "
+            f"Found unsupported missing-reference, oversized-range, or rich-text citations: {examples}"
         )
 
     first_ref_ppr = copy.deepcopy(ref_items[0][2].find("w:pPr", namespaces=NS)) if ref_items[0][2].find("w:pPr", namespaces=NS) is not None else None
