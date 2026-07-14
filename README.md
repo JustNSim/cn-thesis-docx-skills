@@ -1,7 +1,5 @@
 # cn-thesis-docx-skills
 
-> 当前通过 GitHub 源码仓库分发，**尚未发布到 npm**。因此不要使用 `npx cn-thesis-docx-skills` 或 `npx cn-thesis-docx-skills@latest`；这两条命令会返回 npm 404。
-
 用于中文高校本科/研究生毕业论文、毕业设计材料写作的 Agent Skills，重点支持**文献综述**和**开题报告**的草稿生成、DOCX 模板排版、参考文献编号与正文引用处理。
 
 ## 适合做什么
@@ -24,12 +22,16 @@
 
 ## 安装
 
+方式一：Agent自动安装
+
+告诉Agent：“帮我安装这套skills: https://github.com/JustNSim/cn-thesis-docx-skills”
+
+方式二：交互式安装
 ```bash
 git clone https://github.com/JustNSim/cn-thesis-docx-skills.git
 cd cn-thesis-docx-skills
 node bin/install.js install
 ```
-
 按提示选择 skill、目标工具、全局或项目级安装即可。
 
 ## 更新
