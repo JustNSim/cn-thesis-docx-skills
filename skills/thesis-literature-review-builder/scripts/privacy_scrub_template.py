@@ -211,7 +211,10 @@ def remove_removed_relationship_markup_lxml(root: LET._Element, removed_ids: set
         if local == "hyperlink":
             unwrap_lxml(child)
         else:
+            object_parent = next((ancestor for ancestor in child.iterancestors() if local_name_lxml(ancestor) == "object"), None)
             parent.remove(child)
+            if object_parent is not None and object_parent.getparent() is not None:
+                object_parent.getparent().remove(object_parent)
 
 
 def remove_removed_relationship_markup(root: ET.Element, removed_ids: set[str]) -> None:

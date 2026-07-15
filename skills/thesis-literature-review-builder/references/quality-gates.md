@@ -49,9 +49,25 @@ python scripts/audit_docx_report.py <report.docx> --title "<论文题目>" --str
 
 If the audit reports title, TOC, caption-list duplicate, field error, sample-content, plain citation, uncited reference, non-superscript field, or reference-indent issues, revise the DOCX and rerun the audit.
 
+11. Run the structure audit when a DOCX template was used:
+
+```bash
+python scripts/audit_docx_structure.py <report.docx> --template <template.docx> --strict
+```
+
+Require:
+
+- Heading 1 and Heading 2 preserve template numbering definitions or have equivalent direct `w:numPr`.
+- Every Heading 2 paragraph resolves to numbering level `ilvl=1`, so Word renders `1.1`, `1.2`, etc.
+- The main TOC remains a Word `TOC` field, not static text or manually-created hyperlinks.
+- The main TOC instruction includes `\h` and can be updated with F9.
+- The figure list/table list starts on its own page when the template does so.
+- Bibliography numbering uses an independent numbering definition from heading numbering and displays `[1]`, `[2]`, ...
+
 Do not treat exit code alone as sufficient. Before delivery, confirm all applicable metrics:
 
 - `title_on_cover=True`, `title_large_enough=True`, and `title_unresolved_run_count=0` when `--title` is supplied;
+- `main_toc_field_found=True`, `main_toc_static_only=False`, `main_toc_updateable=True`, and `\h` appears in `main_toc_instr`;
 - `ref_field_count > 0` when references exist, `plain_citation_count=0`, and `superscript_ref_fields == ref_field_count`;
 - `missing_reference_bookmarks=[]` and `missing_field_bookmarks=[]`;
 - `uncited_reference_numbers=[]` and `missing_reference_numbers=[]`;

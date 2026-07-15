@@ -76,11 +76,15 @@ If the user explicitly requests the bundled base template or supplies a template
    - Preserve the cover, TOC, section breaks, headers, footers, page-number fields, and template styles unless the user explicitly requests their removal.
    - Do not apply blanket run-level font or size overrides. Use the template's existing paragraph and character styles.
    - Preserve template styles, section settings, headers/footers, TOC fields, and heading levels.
+   - When using a DOCX template, do not rebuild the table of contents as plain paragraphs or manually-created hyperlinks. Keep the original Word TOC field envelope (`w:fldChar` begin/separate/end plus `w:instrText`) and replace only field results when unavoidable. If Word or LibreOffice cannot update fields, mark the TOC field dirty and disclose that page numbers require F9 update in Word.
+   - Preserve template heading numbering. If Heading 1 or Heading 2 numbering disappears, run `preserve_template_numbering.py <output.docx> --template <template.docx> --strict`, then verify Heading 2 resolves to numbering level `ilvl=1`.
+   - Keep bibliography numbering independent from heading numbering. References should render as bracketed `[1]`, `[2]`, ... and must not share the heading `numId`.
    - Convert citations to Word REF fields when renumbering may be needed.
    - Keep in-text citations as superscript Word `REF` fields, not plain baseline text.
    - Keep reference-list hanging indent compact so continuation lines align near the text after `[n]`.
    - Update all fields and the TOC in Word or LibreOffice after headings and page breaks change.
    - Run `inspect_docx_template.py <output> --strict` and `audit_docx_report.py <output> --title "<论文题目>" --strict` before delivery.
+   - Run `audit_docx_structure.py <output> --template <template.docx> --strict` before delivery when a DOCX template is used.
    - Run `compare_md_docx_headings.py <draft.md> <output.docx> --strict` after DOCX conversion and fix any heading-name or heading-level drift.
    - Read the audit metrics, not only its exit code. Require a valid large cover title, at least one superscript `REF` field when references exist, no plain citations, complete bibliography/bookmark and field/bookmark mappings, no uncited or missing references, no duplicated figure/table-list entries, and zero indent, duplicate-reference, or field-error findings. See `references/quality-gates.md` for the exact checklist.
    - Render and inspect pages. If field update or visual inspection is unavailable, report that limitation instead of claiming layout validation.
@@ -105,6 +109,8 @@ If the user explicitly requests the bundled base template or supplies a template
 - `scripts/privacy_scrub_template.py`: scrub DOCX templates before public release.
 - `scripts/audit_markdown_report.py`: inspect Markdown drafts for degree alignment, citation/reference coverage, and common AI-sounding wording patterns.
 - `scripts/audit_docx_report.py`: inspect bibliography paragraphs, citation fields, superscript state, duplicate brackets, and bookmarks.
+- `scripts/audit_docx_structure.py`: inspect template fidelity for Heading 1/2 numbering, real updateable TOC fields, figure-list page breaks, and independent bracketed bibliography numbering.
+- `scripts/preserve_template_numbering.py`: copy heading numbering styles and definitions from the template, then assign direct Heading 1/2 `numPr` without overwriting bibliography numbering.
 - `scripts/compare_md_docx_headings.py`: compare Markdown heading names and levels with DOCX heading paragraphs after conversion.
 - `scripts/clear_update_fields_on_open.py`: remove Word's update-on-open setting after fields have already been updated and saved.
 - `scripts/convert_refs_to_crossrefs.py`: convert plain numeric citations and bibliography entries into Word REF fields and automatic `[n]` reference numbering.

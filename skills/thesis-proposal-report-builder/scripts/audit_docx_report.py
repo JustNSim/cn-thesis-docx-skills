@@ -112,6 +112,114 @@ def instr_texts(root: etree._Element) -> list[str]:
     return ["".join(t.text or "" for t in p.findall(".//w:instrText", NS)) for p in root.findall(".//w:p", NS)]
 
 
+def compact_text(text: str) -> str:
+    return re.sub(r"\s+", "", text or "")
+
+
+def iter_complex_fields(paras: list[etree._Element]) -> list[dict]:
+    fields: list[dict] = []
+    stack: list[dict] = []
+    for idx, p in enumerate(paras, 1):
+        for active in stack:
+            active["paragraph_indexes"].add(idx)
+        for run in p.findall("w:r", NS):
+            fld = run.find("w:fldChar", NS)
+            if fld is not None:
+                fld_type = fld.get(qn("fldCharType"))
+                if fld_type == "begin":
+                    stack.append(
+                        {
+                            "instr": "",
+                            "paragraph_indexes": {idx},
+                            "has_separate": False,
+                            "has_end": False,
+                            "dirty": (fld.get(qn("dirty")) or "").lower() in {"1", "true", "on"},
+                        }
+                    )
+                elif fld_type == "separate" and stack:
+                    stack[-1]["has_separate"] = True
+                elif fld_type == "end" and stack:
+                    field = stack.pop()
+                    field["has_end"] = True
+                    field["paragraph_indexes"].add(idx)
+                    fields.append(field)
+            instr = "".join(t.text or "" for t in run.findall("w:instrText", NS))
+            if instr and stack:
+                stack[-1]["instr"] += instr
+    fields.extend(stack)
+    return fields
+
+
+def iter_simple_fields(paras: list[etree._Element]) -> list[dict]:
+    fields = []
+    for idx, p in enumerate(paras, 1):
+        for fld in p.findall(".//w:fldSimple", NS):
+            fields.append(
+                {
+                    "instr": fld.get(qn("instr")) or "",
+                    "paragraph_indexes": {idx},
+                    "has_separate": False,
+                    "has_end": True,
+                    "dirty": (fld.get(qn("dirty")) or "").lower() in {"1", "true", "on"},
+                }
+            )
+    return fields
+
+
+def is_caption_toc(instr: str) -> bool:
+    return bool(re.search(r'\\c\s+"', instr)) or "\u56fe" in instr or "\u8868" in instr
+
+
+def is_main_toc(instr: str) -> bool:
+    return bool(re.search(r"\bTOC\b", instr)) and not is_caption_toc(instr)
+
+
+def static_toc_candidate_count(paras: list[etree._Element]) -> int:
+    texts = [compact_text(para_text(p)) for p in paras]
+    start = next((i for i, text in enumerate(texts) if text in {"\u76ee\u5f55", "TableofContents"}), None)
+    if start is None:
+        return 0
+    end = len(paras)
+    for i in range(start + 1, len(paras)):
+        if texts[i] in {"\u56fe\u76ee", "\u8868\u76ee", "\u53c2\u8003\u6587\u732e", "References"}:
+            end = i
+            break
+    count = 0
+    for p in paras[start + 1 : end]:
+        text = para_text(p)
+        if compact_text(text) and (p.findall(".//w:hyperlink", NS) or re.search(r"\.{3,}|\t+\d+\s*$", text)):
+            count += 1
+    return count
+
+
+def main_toc_report(paras: list[etree._Element], update_on_open: bool) -> dict:
+    fields = iter_complex_fields(paras) + iter_simple_fields(paras)
+    main_fields = [f for f in fields if is_main_toc(f["instr"])]
+    main = main_fields[0] if main_fields else None
+    result_count = 0
+    hyperlink_count = 0
+    if main is not None:
+        for idx in sorted(main["paragraph_indexes"]):
+            p = paras[idx - 1]
+            text = compact_text(para_text(p))
+            instr = "".join(p.xpath(".//w:instrText/text()", namespaces=NS))
+            if text and text != "\u76ee\u5f55" and "TOC" not in instr:
+                result_count += 1
+            hyperlink_count += len(p.findall(".//w:hyperlink", NS))
+    static_count = static_toc_candidate_count(paras)
+    return {
+        "main_toc_field_found": main is not None,
+        "main_toc_instr": main["instr"].strip() if main is not None else "",
+        "main_toc_result_paragraph_count": result_count,
+        "main_toc_static_only": bool(static_count and main is None),
+        "main_toc_hyperlink_count": hyperlink_count,
+        "main_toc_updateable": bool(
+            main is not None
+            and (main["dirty"] or (main["has_separate"] and main["has_end"]) or update_on_open)
+        ),
+    }
+
+
 def paragraph_instr_text(p: etree._Element) -> str:
     return "".join(t.text or "" for t in p.findall(".//w:instrText", NS))
 
@@ -356,6 +464,7 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
     duplicates = sorted({r for r in norm_refs if norm_refs.count(r) > 1 and r})
     indent_issues = reference_indent_issues(ref_paras, numbering)
     caption_list_issues = caption_list_duplicate_issues(paras)
+    toc_info = main_toc_report(paras, update_on_open)
     sample_hits = [
         {"paragraph_index": idx + 1, "pattern": pat, "text": text[:160]}
         for idx, text in enumerate(texts)
@@ -372,6 +481,7 @@ def audit(path: Path, ref_heading: str, title: str | None = None) -> dict:
         "paragraphs": len(paras),
         **title_info,
         "toc_field_count": sum(1 for instr in field_instr if re.search(r"\bTOC\b", instr)),
+        **toc_info,
         "update_fields_on_open": update_on_open,
         "field_error_count": sum("Error!" in text or "错误!" in text or "找不到" in text for text in texts),
         "caption_list_duplicate_entry_count": len(caption_list_issues),
@@ -412,6 +522,14 @@ def strict_failures(report: dict) -> list[str]:
         failures.append("cover_title_format")
     if not report["toc_field_count"]:
         failures.append("toc_field_count")
+    if not report.get("main_toc_field_found"):
+        failures.append("main_toc_field_found")
+    if report.get("main_toc_static_only"):
+        failures.append("main_toc_static_only")
+    if report.get("main_toc_field_found") and not re.search(r"\\h\b", report.get("main_toc_instr") or ""):
+        failures.append("main_toc_missing_hyperlinks")
+    if report.get("main_toc_field_found") and not report.get("main_toc_updateable"):
+        failures.append("main_toc_updateable")
     for key in (
         "field_error_count",
         "update_fields_on_open",
